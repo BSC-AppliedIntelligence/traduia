@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speaker - Link3rs Backstage</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+        /* Speaker page uses static light background */
+        body {
+            background: #f5f5f5;
+        }
+        .rays-container, .light-source, .atmosphere, .vignette {
+            display: none !important;
+        }
+        
+        /* Controls row */
+        .controls-row {
+            display: flex;
+            gap: 16px;
+            align-items: stretch;
+        }
+
+        /* Speaker main area: compact top, large terminal */
+        .speaker-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .speaker-content {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 16px;
+            height: calc(100vh - 80px);
+        }
+
+        .top-controls {
+            display: flex;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .top-controls .card {
+            flex: 1;
+            padding: 12px 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="speaker-layout">
+        <!-- Header -->
+        <header class="speaker-header">
+            <div>
+                <a href="#" onclick="goBack()" class="text-muted" style="font-size: 0.875rem; text-decoration: none;">← Back to Event</a>
+                <h1 class="speaker-title" id="eventTitle">Speaker Mode</h1>
+            </div>
+            <div class="flex gap-3">
+                <span class="event-code" id="eventCode"></span>
+                <button class="btn btn-danger btn-sm" id="stopBtn" onclick="stopStreaming()" disabled>
+                    Stop Streaming
+                </button>
+            </div>
+        </header>
+
+        <!-- Content -->
+        <div class="speaker-content">
+            <!-- Top row: Audio Input + Connection Status (compact) -->
+            <div class="top-controls">
+                <div class="card">
+                    <h4 style="font-size: 13px; margin-bottom: 8px; color: var(--white);">Audio Input</h4>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <select id="deviceSelect" class="form-select" style="flex: 1; font-size: 12px;">
+                            <option value="">Loading devices...</option>
+                        </select>
+                        <button class="btn btn-primary btn-sm" id="startBtn" onclick="startStreaming()" style="white-space: nowrap;">
+                            Start
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h4 style="font-size: 13px; margin-bottom: 8px; color: var(--white);">Connection Status</h4>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div id="statusIndicator" style="width: 10px; height: 10px; border-radius: 50%; background: var(--gray-600); flex-shrink: 0;"></div>
+                        <p style="font-size: 12px; color: var(--gray-400); margin: 0;" id="connectionStatus">Not connected</p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h4 style="font-size: 13px; margin-bottom: 8px; color: var(--white);">Source Language</h4>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <img src="/static/img/banderaCatEmoji.webp" alt="Catalan" style="height: 18px; width: auto;">
+                        <span style="font-size: 12px; color: var(--gray-400);">Catalan (ca-ES)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Waveform (compact) -->
+            <div class="waveform-container" style="flex-shrink: 0; max-height: 80px;">
+                <canvas id="waveformCanvas" class="waveform-canvas"></canvas>
+                <div class="waveform-status" id="waveformStatus">
+                    Select an audio device and click "Start"
+                </div>
+            </div>
+
+            <!-- Terminal: System Logs (takes remaining space) -->
+            <div class="terminal" style="flex: 1; min-height: 0;">
+                <div class="terminal-header">
+                    <span class="terminal-title">System Logs</span>
+                    <div class="flex gap-2">
+                        <select id="logFilter" class="form-select" style="padding: 6px 10px; font-size: 12px;">
+                            <option value="all">All Sources</option>
+                            <option value="livekit">LiveKit</option>
+                            <option value="whisper">Whisper Live</option>
+                            <option value="google">Google TTS</option>
+                            <option value="translator">Translator</option>
+                            <option value="system">System</option>
+                        </select>
+                        <button class="btn btn-ghost btn-sm" onclick="clearLogs()">Clear</button>
+                        <button class="btn btn-ghost btn-sm" onclick="downloadLogs()">Download</button>
+                    </div>
+                </div>
+                <div class="terminal-body" id="terminalBody" style="height: calc(100% - 48px); overflow-y: auto; max-height: 400px;">
+                    <div class="log-line" data-source="system">
+                        <span class="log-time">--:--:--</span>
+                        <span class="log-source" style="color: var(--gray-500);">system</span>
+                        <span class="log-level info">INFO</span>
+                        <span class="log-message">Speaker mode initialized</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.0.4/dist/livekit-client.umd.min.js"></script>
+    <script>
+        // Server-injected configuration (from .env)
+        window.__SUPABASE_URL__ = '{{ SUPABASE_URL }}';
+        window.__SUPABASE_ANON_KEY__ = '{{ SUPABASE_ANON_KEY }}';
+        window.__APP_URL__ = '{{ APP_URL }}';
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/static/js/config.js"></script>
+    <script src="/static/js/auth.js"></script>
+    <script src="/static/js/db.js"></script>
+    <script src="/static/js/livekit.js"></script>
+    <script>
+        const eventCode = window.location.pathname.split('/').pop();
+        let currentEvent = null;
+        let currentUser = null;
+        let audioContext = null;
+        let analyser = null;
+        let audioStream = null;
+        let isStreaming = false;
+        let animationFrame = null;
+        let logFilter = 'all';
+        let currentSourceLanguage = 'ca';  // Source is always Catalan
+        let sessionId = null;  // Session ID para controlar los agentes
+        let allLogs = [];  // Store all logs for download
+
+        async function init() {
+            if (window.SUPABASE_CONFIG_ERROR) return;
+            
+            const auth = await Auth.requireAuth();
+            if (!auth) return;
+            
+            currentUser = await Auth.getUser();
+            
+            // Load event
+            const event = await DB.getEventByCode(eventCode);
+            if (!event) {
+                addLog('system', 'error', 'Event not found');
+                return;
+            }
+            
+            currentEvent = event;
+            document.getElementById('eventTitle').textContent = event.title;
+            document.getElementById('eventCode').textContent = event.event_code;
+
+            // Setup log callback from LiveKit module
+            LiveKit.onLog = (log) => addLog('livekit', log.level, log.message);
+
+            // Check LiveKit status
+            const status = await LiveKit.checkStatus();
+            if (!status.configured) {
+                addLog('livekit', 'error', 'LiveKit NOT configured - check .env');
+            } else {
+                addLog('livekit', 'success', 'LiveKit server ready');
+            }
+            
+            // Show translation services status
+            if (status.translation_ready) {
+                addLog('whisper', 'success', 'Whisper Live ASR ready');
+                addLog('google', 'success', 'Google TTS ready');
+            } else {
+                if (!status.google_configured) {
+                    addLog('google', 'error', 'GOOGLE_APPLICATION_CREDENTIALS not configured in .env');
+                }
+                addLog('system', 'warning', '⚠️ Translation disabled - configure API keys to enable');
+            }
+            
+            addLog('system', 'info', 'Source language: Catalan (ca)');
+
+            // Load devices
+            await loadDevices();
+            
+            // Initialize waveform canvas
+            initWaveform();
+
+            // Setup log filter
+            document.getElementById('logFilter').addEventListener('change', (e) => {
+                logFilter = e.target.value;
+                filterLogs();
+            });
+            
+            // Connect to server log stream
+            connectLogStream();
+        }
+
+        async function loadDevices() {
+            const select = document.getElementById('deviceSelect');
+            
+            try {
+                const devices = await LiveKit.getAudioDevices();
+                
+                if (devices.length === 0) {
+                    select.innerHTML = '<option value="">No audio devices found</option>';
+                    addLog('system', 'warning', 'No audio input devices found');
+                    document.getElementById('waveformStatus').textContent = 'Allow microphone access or connect an input device';
+                } else {
+                    select.innerHTML = devices.map(d => 
+                        `<option value="${d.deviceId}">${d.label || 'Microphone ' + d.deviceId.slice(0, 8)}</option>`
+                    ).join('');
+                    // Default to the first detected input so remote laptop users do not
+                    // need an extra manual selection before starting the stream.
+                    select.selectedIndex = 0;
+                    addLog('system', 'info', `Found ${devices.length} audio device(s)`);
+                    document.getElementById('waveformStatus').textContent = 'Ready to stream from the selected microphone';
+                }
+            } catch (e) {
+                select.innerHTML = '<option value="">Error loading devices</option>';
+                addLog('system', 'error', `Device error: ${e.message}`);
+                document.getElementById('waveformStatus').textContent = 'Microphone access failed';
+            }
+        }
+
+        function initWaveform() {
+            const canvas = document.getElementById('waveformCanvas');
+            canvas.width = canvas.offsetWidth * 2;
+            canvas.height = canvas.offsetHeight * 2;
+        }
+
+        function drawWaveform() {
+            const canvas = document.getElementById('waveformCanvas');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            if (!analyser) {
+                // Draw idle state
+                ctx.fillStyle = '#f0f0f0';
+                ctx.fillRect(0, 0, width, height);
+                ctx.strokeStyle = '#aaaaaa';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(0, height / 2);
+                ctx.lineTo(width, height / 2);
+                ctx.stroke();
+                return;
+            }
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteTimeDomainData(dataArray);
+
+            ctx.fillStyle = '#f5f5f5';
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#22c55e';
+            ctx.beginPath();
+
+            const sliceWidth = width / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = (v * height) / 2;
+
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+                x += sliceWidth;
+            }
+
+            ctx.lineTo(width, height / 2);
+            ctx.stroke();
+
+            // Glow effect
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#22c55e';
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            animationFrame = requestAnimationFrame(drawWaveform);
+        }
+
+        async function startStreaming() {
+            if (isStreaming) return;
+            
+            const deviceSelect = document.getElementById('deviceSelect');
+            const selectedOption = deviceSelect.options[deviceSelect.selectedIndex];
+            const hasRealDeviceOptions = Array.from(deviceSelect.options).some(option => option.value);
+            const deviceId = deviceSelect.value || (selectedOption && selectedOption.value) || '';
+
+            if (!hasRealDeviceOptions) {
+                addLog('system', 'error', 'Please select an audio device');
+                return;
+            }
+
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            
+            startBtn.disabled = true;
+            startBtn.textContent = '...';
+            
+            try {
+                // Get channels
+                const channels = await DB.getChannels(currentEvent.id);
+                
+                // Create session on server (with source language and event_code)
+                addLog('livekit', 'info', 'Creating session (source: Catalan)...');
+                const session = await LiveKit.createSession(
+                    currentEvent.id,
+                    currentEvent.title,
+                    channels.map(c => ({
+                        language: c.language,
+                        language_code: c.language_code,
+                        is_original: c.is_original
+                    })),
+                    currentSourceLanguage,  // Pass source language
+                    currentEvent.event_code  // Pass event_code for WebSocket captions
+                );
+                
+                // Save session ID for later use
+                sessionId = session.session_id;
+
+                // Connect to LiveKit
+                addLog('livekit', 'info', `Connecting to room: ${session.room_name}`);
+                await LiveKit.connectAsBroadcaster(session.livekit_url, session.broadcaster_token);
+
+                // Start publishing audio
+                addLog('livekit', 'info', 'Starting audio capture...');
+                audioStream = await LiveKit.startPublishing(deviceId || null);
+
+                // Setup audio analyzer for waveform
+                audioContext = new AudioContext();
+                const source = audioContext.createMediaStreamSource(audioStream);
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+                source.connect(analyser);
+
+                // Start waveform animation
+                drawWaveform();
+
+                // Update UI
+                isStreaming = true;
+                startBtn.textContent = 'Live';
+                stopBtn.disabled = false;
+                document.getElementById('waveformStatus').textContent = 'Streaming audio...';
+                document.getElementById('waveformStatus').classList.add('active');
+                document.getElementById('connectionStatus').textContent = 'Connected to LiveKit';
+                document.getElementById('statusIndicator').style.background = 'var(--success)';
+                document.getElementById('statusIndicator').style.boxShadow = '0 0 8px var(--success)';
+
+                addLog('livekit', 'success', '🎙️ Streaming started!');
+                
+                // Show active agents
+                if (session.active_agents) {
+                    addLog('system', 'info', `Active translation agents: ${session.active_agents.join(', ')}`);
+                }
+
+            } catch (e) {
+                addLog('livekit', 'error', `Failed to start: ${e.message}`);
+                startBtn.disabled = false;
+                startBtn.textContent = 'Start';
+            }
+        }
+
+        async function stopStreaming() {
+            if (!isStreaming) return;
+
+            addLog('livekit', 'info', 'Stopping stream...');
+
+            // Stop animation
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+                animationFrame = null;
+            }
+
+            // Stop audio
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+                analyser = null;
+            }
+
+            // Disconnect from LiveKit
+            await LiveKit.disconnect();
+
+            // Stop session on server
+            await LiveKit.stopSession(currentEvent.id);
+
+            // Update UI
+            isStreaming = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('startBtn').textContent = 'Start';
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('waveformStatus').textContent = 'Stopped';
+            document.getElementById('waveformStatus').classList.remove('active');
+            document.getElementById('connectionStatus').textContent = 'Disconnected';
+            document.getElementById('statusIndicator').style.background = 'var(--gray-600)';
+            document.getElementById('statusIndicator').style.boxShadow = 'none';
+
+            // Redraw waveform as idle
+            initWaveform();
+            drawWaveform();
+
+            addLog('system', 'info', 'Stream stopped');
+
+            // Suggest downloading logs
+            if (allLogs.length > 10) {
+                addLog('system', 'info', `Session ended with ${allLogs.length} log entries. Click "Download" to save them.`);
+            }
+        }
+
+        // WebSocket for server logs
+        let wsLogs = null;
+        
+        function connectLogStream() {
+            if (!currentEvent) return;
+            
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/logs/${currentEvent.id}`;
+            
+            wsLogs = new WebSocket(wsUrl);
+            
+            wsLogs.onopen = () => {
+                addLog('system', 'success', 'Connected to log stream');
+                LiveKit.getSessionStatus(currentEvent.id).then(status => {
+                    if (status.asr_status === 'failed') showAsrFailure();
+                });
+            };
+            
+            wsLogs.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.asr_failed) showAsrFailure();
+                    addLog(data.source || 'system', data.level || 'info', data.message, data.replace_key || '');
+                } catch (e) {
+                    addLog('system', 'info', event.data);
+                }
+            };
+            
+            wsLogs.onclose = () => {
+                // Reconnect after 3 seconds if still streaming
+                if (isStreaming) {
+                    setTimeout(connectLogStream, 3000);
+                }
+            };
+        }
+
+        function showAsrFailure() {
+            document.getElementById('connectionStatus').textContent = 'Transcription stopped — press Stop, then restart';
+            document.getElementById('statusIndicator').style.background = '#b91c1c';
+            document.getElementById('statusIndicator').style.boxShadow = 'none';
+        }
+
+        const SOURCE_COLORS = {
+            'livekit': '#3b82f6',
+            'whisper': '#22c55e',
+            'google': '#f59e0b',
+            'translator': '#8b5cf6',
+            'system': '#6b7280'
+        };
+
+        function addLog(source, level, message, replaceKey = '') {
+            const terminal = document.getElementById('terminalBody');
+            const time = new Date().toLocaleTimeString();
+            const fullTime = new Date().toISOString();
+            const sourceColor = SOURCE_COLORS[source] || SOURCE_COLORS.system;
+
+            // Keep the complete history in downloadable logs.
+            allLogs.push({ time: fullTime, source, level, message });
+
+            if (replaceKey) {
+                const existing = Array.from(terminal.children).find(
+                    child => child.dataset.replaceKey === replaceKey
+                );
+                if (existing) {
+                    existing.querySelector('.log-time').textContent = time;
+                    existing.querySelector('.log-message').textContent = message;
+                    terminal.scrollTop = terminal.scrollHeight;
+                    return;
+                }
+            }
+
+            const line = document.createElement('div');
+            line.className = 'log-line';
+            line.dataset.source = source;
+            line.dataset.level = level;
+            line.dataset.replaceKey = replaceKey;
+            line.innerHTML = `
+                <span class="log-time">${time}</span>
+                <span class="log-source" style="color: ${sourceColor}; min-width: 70px; font-weight: 600;">${source}</span>
+                <span class="log-level ${level}">${level.toUpperCase()}</span>
+                <span class="log-message">${escapeHtml(message)}</span>
+            `;
+            terminal.appendChild(line);
+            terminal.scrollTop = terminal.scrollHeight;
+
+            // Apply filter
+            if (logFilter !== 'all' && source !== logFilter) {
+                line.style.display = 'none';
+            }
+
+            // Keep only last 1000 lines in DOM
+            while (terminal.children.length > 1000) {
+                terminal.removeChild(terminal.firstChild);
+            }
+        }
+
+        function downloadLogs() {
+            if (allLogs.length === 0) {
+                alert('No logs to download');
+                return;
+            }
+            const eventName = currentEvent ? currentEvent.title : 'unknown';
+            const date = new Date().toISOString().slice(0, 10);
+            const lines = allLogs.map(l =>
+                `[${l.time}] [${l.source.toUpperCase().padEnd(12)}] [${l.level.toUpperCase().padEnd(7)}] ${l.message}`
+            );
+            const header = `Link3rs Backstage — Session Logs\nEvent: ${eventName}\nDate: ${date}\nTotal entries: ${allLogs.length}\n${'='.repeat(80)}\n`;
+            const content = header + lines.join('\n');
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `logs_${eventName.replace(/\s+/g, '_')}_${date}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function filterLogs() {
+            const lines = document.querySelectorAll('#terminalBody .log-line');
+            lines.forEach(line => {
+                if (logFilter === 'all' || line.dataset.source === logFilter) {
+                    line.style.display = 'flex';
+                } else {
+                    line.style.display = 'none';
+                }
+            });
+        }
+
+        function clearLogs() {
+            document.getElementById('terminalBody').innerHTML = `
+                <div class="log-line" data-source="system" data-level="info">
+                    <span class="log-time">${new Date().toLocaleTimeString()}</span>
+                    <span class="log-source" style="color: #6b7280; min-width: 60px; font-weight: 600;">system</span>
+                    <span class="log-level info">INFO</span>
+                    <span class="log-message">Logs cleared</span>
+                </div>
+            `;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function goBack() {
+            if (isStreaming) {
+                if (confirm('You are currently streaming. Stop and go back?')) {
+                    stopStreaming().then(() => {
+                        window.location.href = `/event/${eventCode}`;
+                    });
+                }
+            } else {
+                window.location.href = `/event/${eventCode}`;
+            }
+        }
+
+        // Handle page unload
+        window.addEventListener('beforeunload', async (e) => {
+            if (isStreaming) {
+                await stopStreaming();
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>

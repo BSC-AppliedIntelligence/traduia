@@ -1,0 +1,5 @@
+ctranslate2>=4.0.0
+pyonmttok>=1.37.0
+huggingface_hub>=0.20.0
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0

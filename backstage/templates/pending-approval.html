@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pending Approval - Link3rs Backstage</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+
+    <div class="auth-layout">
+        <div class="auth-card card" style="text-align: center;">
+            <div style="font-size: 64px; margin-bottom: 24px;">⏳</div>
+            <h1 style="font-size: 24px; font-weight: 600; color: var(--white); margin-bottom: 16px;">
+                Waiting for Approval
+            </h1>
+            <p style="color: var(--gray-400); margin-bottom: 8px;">
+                Your account has been created but needs to be approved by an administrator.
+            </p>
+            <p style="color: var(--gray-500); font-size: 14px; margin-bottom: 24px;">
+                Email: <span id="userEmail" style="color: var(--white);">Loading...</span>
+            </p>
+            <p style="color: var(--gray-500); font-size: 13px; margin-bottom: 24px;">
+                An administrator will review your request soon.
+            </p>
+            
+            <div class="flex gap-2" style="justify-content: center;">
+                <button class="btn btn-secondary" onclick="checkStatus()">Check Status</button>
+                <button class="btn btn-ghost" onclick="Auth.signOut()">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Server-injected configuration (from .env)
+        window.__SUPABASE_URL__ = '{{ SUPABASE_URL }}';
+        window.__SUPABASE_ANON_KEY__ = '{{ SUPABASE_ANON_KEY }}';
+        window.__APP_URL__ = '{{ APP_URL }}';
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/static/js/config.js"></script>
+    <script src="/static/js/auth.js"></script>
+    <script>
+        async function init() {
+            if (window.SUPABASE_CONFIG_ERROR) return;
+            
+            const result = await Auth.checkPendingStatus();
+            if (result) {
+                document.getElementById('userEmail').textContent = result.session.user.email;
+            }
+        }
+        
+        async function checkStatus() {
+            const session = await Auth.getSession();
+            if (session) {
+                const profile = await Auth.getProfile(session.user.id);
+                if (profile && profile.is_approved) {
+                    window.location.href = '/dashboard';
+                } else {
+                    alert('Your account is still pending approval.');
+                }
+            }
+        }
+        
+        init();
+    </script>
+</body>
+</html>

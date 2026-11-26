@@ -1,0 +1,103 @@
+FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cu128
+ARG TORCH_PACKAGE=torch
+ARG TORCHAUDIO_PACKAGE=torchaudio
+ARG CTRANSLATE2_PACKAGE=ctranslate2
+ARG NUMPY_PACKAGE=numpy<2
+ARG CTRANSLATE2_VERSION=v4.7.1
+ARG CTRANSLATE2_INSTALL_PREFIX=/opt/ctranslate2
+
+# Install Python, build dependencies, and runtime deps needed to compile
+# CTranslate2 from source with CUDA support on Spark arm64.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    git \
+    libopenblas-dev \
+    ninja-build \
+    pkg-config \
+    portaudio19-dev \
+    python3 \
+    python3-dev \
+    python3-pip \
+    python3-setuptools \
+    python3-wheel \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Keep pip/newer packaging behavior consistent with the generic image path.
+RUN python3 -m pip install --no-cache-dir -U "pip>=24"
+
+RUN ln -sf /usr/bin/python3 /usr/local/bin/python && \
+    ln -sf /usr/bin/python3 /usr/local/bin/python3 && \
+    ln -sf /usr/bin/pip3 /usr/local/bin/pip
+
+WORKDIR /app
+
+# Install a CUDA-enabled PyTorch stack explicitly for Spark before the generic
+# server requirements. The build fails fast if pip resolves to a CPU-only wheel.
+RUN python3 -m pip install --no-cache-dir \
+    --index-url "${PYTORCH_INDEX_URL}" \
+    "${TORCH_PACKAGE}" \
+    "${TORCHAUDIO_PACKAGE}"
+
+RUN python -c "import torch; print('torch', torch.__version__); print('torch cuda', torch.version.cuda); assert torch.version.cuda is not None, 'Expected a CUDA-enabled torch wheel, got CPU-only torch'"
+
+# Install the rest of the server dependencies without modifying server.txt.
+COPY requirements/server.txt /app/
+RUN python3 -m pip install --no-cache-dir -r server.txt && rm server.txt
+
+# Remove the wheel-selected ctranslate2 package before installing the
+# source-built variant so the experimental path is unambiguous.
+RUN python3 -m pip uninstall -y "${CTRANSLATE2_PACKAGE}" || true
+
+# Build and install CTranslate2 from source with CUDA enabled. This follows the
+# upstream source-install flow, but targets OpenBLAS on arm64 instead of MKL.
+WORKDIR /tmp
+RUN git clone --recursive --branch "${CTRANSLATE2_VERSION}" https://github.com/OpenNMT/CTranslate2.git ctranslate2-src
+
+WORKDIR /tmp/ctranslate2-src
+RUN cmake -S . -B build -GNinja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX="${CTRANSLATE2_INSTALL_PREFIX}" \
+    -DBUILD_CLI=OFF \
+    -DWITH_CUDA=ON \
+    -DWITH_CUDNN=ON \
+    -DWITH_MKL=OFF \
+    -DWITH_DNNL=OFF \
+    -DWITH_OPENBLAS=ON \
+    -DOPENMP_RUNTIME=COMP \
+    -DCUDA_DYNAMIC_LOADING=ON && \
+    cmake --build build --parallel && \
+    cmake --install build
+
+WORKDIR /tmp/ctranslate2-src/python
+ENV CTRANSLATE2_ROOT=${CTRANSLATE2_INSTALL_PREFIX}
+RUN python3 -m pip install --no-cache-dir -r install_requirements.txt && \
+    python3 setup.py bdist_wheel && \
+    python3 -m pip install --no-cache-dir dist/*.whl
+
+# Some binary dependencies in this stack, notably onnxruntime 1.17.x, still
+# require NumPy 1.x ABI compatibility.
+RUN python3 -m pip install --no-cache-dir --force-reinstall "${NUMPY_PACKAGE}"
+
+# Re-check after the generic requirements install in case a dependency path
+# replaced torch with a CPU-only build.
+RUN python -c "import torch; print('final torch', torch.__version__); print('final torch cuda', torch.version.cuda); assert torch.version.cuda is not None, 'server.txt installation replaced torch with a CPU-only build'"
+
+RUN python -c "import ctranslate2; print('ctranslate2', ctranslate2.__version__)"
+RUN python -c "import numpy; import onnxruntime; print('numpy', numpy.__version__); print('onnxruntime', onnxruntime.__version__)"
+
+# Make both the source-built CTranslate2 libraries and wheel-provided NVIDIA
+# runtime libraries visible at runtime.
+ENV LD_LIBRARY_PATH="${CTRANSLATE2_INSTALL_PREFIX}/lib:/usr/local/lib/python3.10/dist-packages/nvidia/cublas/lib:/usr/local/lib/python3.10/dist-packages/nvidia/cudnn/lib:/usr/local/lib/python3.10/dist-packages/nvidia/cusolver/lib:/usr/local/lib/python3.10/dist-packages/nvidia/cusparse/lib:/usr/local/lib/python3.10/dist-packages/nvidia/cuda_runtime/lib"
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+WORKDIR /app
+COPY whisper_live /app/whisper_live
+COPY run_server.py /app
+
+CMD ["python", "run_server.py"]

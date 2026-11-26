@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Link3rs Backstage</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+
+    <div class="auth-layout">
+        <div class="loading" id="loadingState">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <script>
+        // Server-injected configuration (from .env)
+        window.__SUPABASE_URL__ = '{{ SUPABASE_URL }}';
+        window.__SUPABASE_ANON_KEY__ = '{{ SUPABASE_ANON_KEY }}';
+        window.__APP_URL__ = '{{ APP_URL }}';
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/static/js/config.js"></script>
+    <script src="/static/js/auth.js"></script>
+    <script>
+        async function init() {
+            if (window.SUPABASE_CONFIG_ERROR) return;
+            
+            const session = await Auth.getSession();
+            
+            if (session) {
+                const profile = await Auth.getProfile(session.user.id);
+                if (profile && profile.is_approved) {
+                    window.location.href = '/dashboard';
+                } else {
+                    window.location.href = '/pending-approval';
+                }
+            } else {
+                window.location.href = '/login';
+            }
+        }
+        
+        init();
+    </script>
+</body>
+</html>

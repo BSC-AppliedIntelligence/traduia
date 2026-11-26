@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Link3rs Backstage</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+
+    <div class="auth-layout">
+        <div class="auth-card card">
+            <div class="auth-header">
+                <img src="/static/img/bscTranslatorLogo.png" alt="BSC Translator" style="height: 64px; width: 64px; margin-bottom: 16px;">
+                <h1>Welcome back</h1>
+                <p>Sign in to your account</p>
+            </div>
+
+            <form id="loginForm">
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="email" id="email" class="form-input" placeholder="you@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" id="password" class="form-input" placeholder="••••••••" required>
+                </div>
+                <div id="errorMsg" class="text-danger mb-3" style="font-size: 14px; display: none;"></div>
+                <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;" id="submitBtn">
+                    Sign In
+                </button>
+            </form>
+
+            <div class="auth-footer">
+                Don't have an account? <a href="/signup">Sign up</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Server-injected configuration (from .env)
+        window.__SUPABASE_URL__ = '{{ SUPABASE_URL }}';
+        window.__SUPABASE_ANON_KEY__ = '{{ SUPABASE_ANON_KEY }}';
+        window.__APP_URL__ = '{{ APP_URL }}';
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/static/js/config.js"></script>
+    <script src="/static/js/auth.js"></script>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorMsg = document.getElementById('errorMsg');
+            const submitBtn = document.getElementById('submitBtn');
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Signing in...';
+            errorMsg.style.display = 'none';
+            
+            const result = await Auth.signIn(email, password);
+            
+            if (result.success) {
+                window.location.href = '/';
+            } else {
+                errorMsg.textContent = result.error;
+                errorMsg.style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Sign In';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event - Link3rs Backstage</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="/dashboard" class="sidebar-logo">
+                    <img src="/static/img/bscTranslatorLogo.png" alt="BSC Translator">
+                </a>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/dashboard" class="nav-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                    Events
+                </a>
+                <a href="/archive" class="nav-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+                    Archive
+                </a>
+                <div class="nav-divider"></div>
+                <a href="/account" class="nav-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                    Account
+                </a>
+                <button class="nav-item" onclick="Auth.signOut()">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                    Logout
+                </button>
+            </nav>
+            <div class="sidebar-branding">
+                <a href="https://www.link3rs.com" target="_blank"><img src="/static/img/builtByLink3rs.png" alt="Built by Link3rs"></a>
+            </div>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar" id="userAvatar">?</div>
+                    <div>
+                        <div class="user-name" id="userName">Loading...</div>
+                        <div class="user-email" id="userEmail">...</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="page-header">
+                <div>
+                    <a href="/dashboard" class="text-muted" style="font-size: 0.875rem; text-decoration: none;">← Back to Events</a>
+                    <h1 class="page-title" id="eventTitle">Loading...</h1>
+                    <span class="event-code" id="eventCode"></span>
+                </div>
+            </header>
+
+            <div class="page-content">
+                <div class="tabs">
+                    <button class="tab active" data-tab="channels">Channels</button>
+                    <button class="tab" data-tab="share">Share</button>
+                    <button class="tab" data-tab="terminal">Terminal</button>
+                    <button class="tab" data-tab="endpoints">Endpoints</button>
+                    <button class="tab" data-tab="settings">Settings</button>
+                </div>
+
+                <!-- Channels Tab -->
+                <div id="tab-channels" class="tab-content active">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Audio Channels</h3>
+                            <button class="btn btn-primary btn-sm" onclick="openChannelModal()">+ Add Channel</button>
+                        </div>
+                        <div id="channelsList" class="channels-list">
+                            <div class="loading"><div class="spinner"></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Share Tab -->
+                <div id="tab-share" class="tab-content">
+                    <div class="card">
+                        <h3 class="card-title mb-3">Share Event</h3>
+                        <div class="share-link mb-4">
+                            <input type="text" id="shareUrl" class="form-input" readonly style="font-family: var(--font-mono);">
+                            <button class="btn btn-primary btn-sm" onclick="copyLink()">Copy</button>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Terminal Tab -->
+                <div id="tab-terminal" class="tab-content">
+                    <div class="terminal">
+                        <div class="terminal-header">
+                            <span class="terminal-title">Event Logs</span>
+                            <div class="flex gap-2">
+                                <select id="logFilter" class="form-select" style="padding: 6px 10px; font-size: 12px;">
+                                    <option value="all">All Sources</option>
+                                    <option value="livekit">LiveKit</option>
+                                    <option value="whisper">Whisper Live</option>
+                                    <option value="google">Google TTS</option>
+                                    <option value="translator">Translator</option>
+                                    <option value="system">System</option>
+                                </select>
+                                <button class="btn btn-ghost btn-sm" onclick="clearLogs()">Clear</button>
+                                <button class="btn btn-ghost btn-sm" onclick="downloadLogs()">Download</button>
+                            </div>
+                        </div>
+                        <div class="terminal-body" id="terminalBody" style="overflow-y: auto; max-height: 500px;">
+                            <div class="log-line" data-source="system">
+                                <span class="log-time">--:--:--</span>
+                                <span class="log-source" style="color: var(--gray-500); min-width: 70px; font-weight: 600;">system</span>
+                                <span class="log-level info">INFO</span>
+                                <span class="log-message">Ready. Create channels and start streaming.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Endpoints Tab -->
+                <div id="tab-endpoints" class="tab-content">
+                    <form id="endpointsForm">
+                        <div class="card">
+                            <h3 class="card-title mb-3">Whisper Live (ASR)</h3>
+                            <p style="color: var(--gray-500); font-size: 13px; margin-bottom: 20px;">Configure the Whisper Live server for real-time transcription.</p>
+                            <div class="form-group">
+                                <label class="form-label">Host</label>
+                                <input type="text" id="whisperHost" class="form-input" placeholder="e.g., 69.30.85.131">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Port</label>
+                                <input type="number" id="whisperPort" class="form-input" placeholder="e.g., 22197" min="1" max="65535">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="whisperModel">Shared ASR model</label>
+                                <p style="color: var(--gray-500); font-size: 13px;">Applies to all events using this server. Existing broadcasts keep their current model until they finish.</p>
+                                <select id="whisperModel" class="form-select" disabled>
+                                    <option value="Systran/faster-whisper-large-v3" selected>Systran Large-v3 (recommended for live transcription)</option>
+                                    <option value="Systran/faster-whisper-small">Systran Small (lower GPU memory usage)</option>
+                                    <option value="BSC-LT/faster-whisper-large-v3-ca-punctuated-3370h">BSC Large-v3 Catalan — punctuated, 3370h (Catalan-specialized; for comparison)</option>
+                                </select>
+                                <p id="asrRunningModel" style="font-size: 13px; margin-top: 8px;">Running model: checking…</p>
+                                <p id="asrModelStatus" role="status" aria-live="polite" style="font-size: 13px;">Checking the shared selection…</p>
+                                <button type="button" id="saveAsrModel" class="btn btn-secondary" disabled>Save shared model</button>
+                                <small style="display: block; margin-top: 8px;">Saved choices survive service restarts. The next Start loads the selected model once all broadcasts have finished. Save endpoint host/port changes below before selecting a model on another server.</small>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Source Language</label>
+                                <input type="text" class="form-input" value="Catalan (ca)" disabled>
+                                <input type="hidden" id="whisperLanguage" value="ca">
+                            </div>
+                        </div>
+                        <div class="card" style="margin-top: 16px;">
+                            <h3 class="card-title mb-3">AINA Translator</h3>
+                            <p style="color: var(--gray-500); font-size: 13px; margin-bottom: 20px;">Configure the AINA Translator service for Catalan → multi-language translation. Supports: English, Spanish, French, Portuguese, Italian, German.</p>
+                            <div class="form-group">
+                                <label class="form-label">Translation Pod ID</label>
+                                <input type="text" id="translatorPodId" class="form-input" placeholder="e.g., abc123def456" oninput="updateTranslatorUrl()">
+                                <small style="color: var(--gray-400); font-size: 11px; margin-top: 4px; display: block;">RunPod Pod ID for the AINA Translator service</small>
+                            </div>
+                            <div class="form-group" style="margin-top: 12px;">
+                                <label class="form-label">Translator URL</label>
+                                <input type="text" id="translatorUrl" class="form-input" placeholder="http://localhost:8002 or https://podid-8000.proxy.runpod.net">
+                                <small style="color: var(--gray-500); font-size: 11px; margin-top: 4px; display: block;">Set the local Docker URL or use the Pod ID helper above for RunPod</small>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Save Endpoints and Model</button>
+                            <span id="endpointsSaved" role="status" aria-live="polite" style="font-size: 13px; margin-left: 12px; display: none;"></span>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Settings Tab -->
+                <div id="tab-settings" class="tab-content">
+                    <div class="card">
+                        <h3 class="card-title mb-3">Event Settings</h3>
+                        <form id="settingsForm">
+                            <div class="form-group">
+                                <label class="form-label">Title</label>
+                                <input type="text" id="settingsTitle" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Description</label>
+                                <textarea id="settingsDesc" class="form-input" rows="3"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </form>
+                    </div>
+
+                    <div class="card mt-4">
+                        <h3 class="card-title mb-2">Archive Event</h3>
+                        <p class="text-muted" style="font-size: 0.875rem;">Archive this event to stop all streaming. You can restore it later.</p>
+                        <button class="btn btn-secondary mt-3" onclick="archiveEvent()">Archive Event</button>
+                    </div>
+
+                    <div class="danger-zone">
+                        <h4 class="danger-zone-title">⚠️ Danger Zone</h4>
+                        <p class="danger-zone-text">Permanently delete this event and all its channels. This action cannot be undone.</p>
+                        <div class="form-group">
+                            <label class="form-label">Type "<span id="deleteText"></span>" to confirm:</label>
+                            <input type="text" id="deleteInput" class="form-input" style="max-width: 300px;">
+                        </div>
+                        <button class="btn btn-danger" id="deleteBtn" onclick="deleteEvent()" disabled>Delete Event</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Channel Modal -->
+    <div id="channelModal" class="modal-overlay hidden" onclick="if(event.target===this)closeChannelModal()">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Add Channel</h3>
+                <button class="modal-close" onclick="closeChannelModal()">✕</button>
+            </div>
+            <form id="channelForm">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-checkbox">
+                            <input type="checkbox" id="channelOriginal" onchange="toggleOriginalChannel()">
+                            <span>Original channel (speaker audio)</span>
+                        </label>
+                    </div>
+                    <div class="form-group" id="channelNameGroup">
+                        <label class="form-label">Channel Name</label>
+                        <input type="text" id="channelName" class="form-input" placeholder="e.g., Spanish Translation">
+                    </div>
+                    <div class="form-group" id="channelLangGroup">
+                        <label class="form-label">Language</label>
+                        <select id="channelLang" class="form-select">
+                            <option value="en" data-code="en-US">🇬🇧 English</option>
+                            <option value="es" data-code="es-ES">🇪🇸 Spanish</option>
+                            <option value="fr" data-code="fr-FR">🇫🇷 French</option>
+                            <option value="pt" data-code="pt-BR">🇧🇷 Portuguese</option>
+                            <option value="it" data-code="it-IT">🇮🇹 Italian</option>
+                            <option value="de" data-code="de-DE">🇩🇪 German</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeChannelModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Channel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Server-injected configuration (from .env)
+        window.__SUPABASE_URL__ = '{{ SUPABASE_URL }}';
+        window.__SUPABASE_ANON_KEY__ = '{{ SUPABASE_ANON_KEY }}';
+        window.__APP_URL__ = '{{ APP_URL }}';
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/static/js/config.js"></script>
+    <script src="/static/js/auth.js"></script>
+    <script src="/static/js/db.js"></script>
+    <script src="/static/js/asr-model-selection.js"></script>
+    <script>
+        const eventCode = window.location.pathname.split('/').pop();
+        let currentEvent = null;
+        let currentUser = null;
+
+        async function init() {
+            if (window.SUPABASE_CONFIG_ERROR) return;
+            
+            const auth = await Auth.requireAuth();
+            if (!auth) return;
+            
+            currentUser = await Auth.getUser();
+            
+            // Update sidebar
+            document.getElementById('userName').textContent = auth.profile?.full_name || currentUser.email.split('@')[0];
+            document.getElementById('userEmail').textContent = currentUser.email;
+            document.getElementById('userAvatar').textContent = (auth.profile?.full_name || currentUser.email)[0].toUpperCase();
+
+            await loadEvent();
+            setupTabs();
+        }
+
+        async function loadEvent() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('events')
+                    .select('*')
+                    .eq('event_code', eventCode);
+                
+                if (error || !data || data.length === 0) {
+                    throw new Error('Event not found');
+                }
+                
+                currentEvent = data[0];
+                
+                // Update UI
+                document.getElementById('eventTitle').textContent = currentEvent.title;
+                document.getElementById('eventCode').textContent = currentEvent.event_code;
+                document.getElementById('settingsTitle').value = currentEvent.title;
+                document.getElementById('settingsDesc').value = currentEvent.description || '';
+                document.getElementById('deleteText').textContent = currentEvent.title + ' ' + currentEvent.event_code;
+
+                // Share URL
+                const shareUrl = `${window.location.origin}/stage/${currentEvent.event_code}`;
+                document.getElementById('shareUrl').value = shareUrl;
+
+                await loadChannels();
+                connectLogStream();
+
+            } catch (error) {
+                console.error('Load error:', error);
+                alert('Event not found');
+                window.location.href = '/dashboard';
+            }
+        }
+
+        async function loadChannels() {
+            const list = document.getElementById('channelsList');
+            
+            try {
+                const channels = await DB.getChannels(currentEvent.id);
+                
+                if (channels.length === 0) {
+                    list.innerHTML = `
+                        <div class="empty-state">
+                            <p class="text-muted">No channels yet. Add an Original channel for the speaker, then add translation channels.</p>
+                        </div>
+                    `;
+                } else {
+                    list.innerHTML = channels.map(c => {
+                        // Original channels are always Catalan
+                        const lang = c.is_original ? 'ca' : c.language;
+                        const langCode = c.is_original ? 'ca-ES' : c.language_code;
+                        const flag = window.getFlag(lang);
+                        const langName = window.getLangName(lang);
+
+                        return `
+                            <div class="channel-card">
+                                <div class="channel-header">
+                                    <div class="channel-name">
+                                        <span class="channel-flag">${flag}</span>
+                                        ${escapeHtml(c.name || langName)}
+                                        ${c.is_original ? '<span class="channel-badge">ORIGINAL</span>' : ''}
+                                    </div>
+                                    <button class="btn btn-ghost btn-sm" onclick="deleteChannel('${c.id}')">🗑️</button>
+                                </div>
+                                <div class="channel-info">
+                                    <span>Language: ${langName}</span>
+                                    <span>Code: ${langCode}</span>
+                                </div>
+                                <div class="channel-actions">
+                                    <button class="btn btn-secondary btn-sm" onclick="openPrivateListener('${c.id}', '${c.language}', '${escapeHtml(c.name || langName)}')">
+                                        🎧 Listen
+                                    </button>
+                                    ${c.is_original ? `
+                                        <button class="btn btn-primary btn-sm" onclick="joinAsSpeaker()">
+                                            🎙️ Join as Speaker
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } catch (e) {
+                list.innerHTML = `<p class="text-danger">Error loading channels: ${e.message}</p>`;
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function setupTabs() {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+                });
+            });
+        }
+
+        // Channel Modal
+        function openChannelModal() {
+            document.getElementById('channelModal').classList.remove('hidden');
+            document.getElementById('channelOriginal').checked = false;
+            toggleOriginalChannel();
+        }
+
+        function closeChannelModal() {
+            document.getElementById('channelModal').classList.add('hidden');
+            document.getElementById('channelForm').reset();
+        }
+
+        function toggleOriginalChannel() {
+            const isOriginal = document.getElementById('channelOriginal').checked;
+            document.getElementById('channelNameGroup').style.display = isOriginal ? 'none' : 'block';
+            document.getElementById('channelLangGroup').style.display = isOriginal ? 'none' : 'block';
+        }
+
+        document.getElementById('channelForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            try {
+                const isOriginal = document.getElementById('channelOriginal').checked;
+                const sel = document.getElementById('channelLang');
+                
+                await DB.createChannel(
+                    currentEvent.id,
+                    document.getElementById('channelName').value,
+                    sel.value,
+                    sel.options[sel.selectedIndex].dataset.code,
+                    isOriginal
+                );
+                
+                closeChannelModal();
+                await loadChannels();
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        });
+
+        async function deleteChannel(id) {
+            if (confirm('Delete this channel?')) {
+                await DB.deleteChannel(id);
+                await loadChannels();
+            }
+        }
+
+        function joinAsSpeaker() {
+            window.location.href = `/speaker/${currentEvent.event_code}`;
+        }
+
+        function openPrivateListener(channelId, language, channelName) {
+            window.location.href = `/monitor/${currentEvent.event_code}?channel=${channelId}&lang=${language}&name=${encodeURIComponent(channelName)}`;
+        }
+
+        // Share
+        function copyLink() {
+            navigator.clipboard.writeText(document.getElementById('shareUrl').value);
+            alert('Link copied!');
+        }
+
+        // Terminal — WebSocket log stream
+        const SOURCE_COLORS = {
+            system: 'var(--gray-500)',
+            livekit: '#3b82f6',
+            whisper: '#22c55e',
+            google: '#f59e0b',
+            translator: '#a855f7',
+        };
+        let wsLogs = null;
+        let allLogs = [];
+        let logFilter = 'all';
+
+        function connectLogStream() {
+            if (!currentEvent) return;
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/logs/${currentEvent.id}`;
+
+            wsLogs = new WebSocket(wsUrl);
+
+            wsLogs.onopen = () => {
+                addLog('system', 'success', 'Connected to log stream');
+            };
+
+            wsLogs.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    addLog(data.source || 'system', data.level || 'info', data.message, data.replace_key || '');
+                } catch (e) {
+                    addLog('system', 'info', event.data);
+                }
+            };
+
+            wsLogs.onclose = () => {
+                // Reconnect after 3 seconds
+                setTimeout(connectLogStream, 3000);
+            };
+        }
+
+        function addLog(source, level, message, replaceKey = '') {
+            const terminal = document.getElementById('terminalBody');
+            const time = new Date().toLocaleTimeString();
+            const fullTime = new Date().toISOString();
+            const sourceColor = SOURCE_COLORS[source] || SOURCE_COLORS.system;
+
+            allLogs.push({ time: fullTime, source, level, message });
+
+            if (replaceKey) {
+                const existing = Array.from(terminal.children).find(
+                    child => child.dataset.replaceKey === replaceKey
+                );
+                if (existing) {
+                    existing.querySelector('.log-time').textContent = time;
+                    existing.querySelector('.log-message').textContent = message;
+                    terminal.scrollTop = terminal.scrollHeight;
+                    return;
+                }
+            }
+
+            const line = document.createElement('div');
+            line.className = 'log-line';
+            line.dataset.source = source;
+            line.dataset.level = level;
+            line.dataset.replaceKey = replaceKey;
+            line.innerHTML = `
+                <span class="log-time">${time}</span>
+                <span class="log-source" style="color: ${sourceColor}; min-width: 70px; font-weight: 600;">${source}</span>
+                <span class="log-level ${level}">${level.toUpperCase()}</span>
+                <span class="log-message">${escapeHtml(message)}</span>
+            `;
+            terminal.appendChild(line);
+            terminal.scrollTop = terminal.scrollHeight;
+
+            if (logFilter !== 'all' && source !== logFilter) {
+                line.style.display = 'none';
+            }
+
+            while (terminal.children.length > 1000) {
+                terminal.removeChild(terminal.firstChild);
+            }
+        }
+
+        function clearLogs() {
+            const terminal = document.getElementById('terminalBody');
+            terminal.innerHTML = '';
+            addLog('system', 'info', 'Logs cleared');
+        }
+
+        function downloadLogs() {
+            if (allLogs.length === 0) {
+                alert('No logs to download');
+                return;
+            }
+            const text = allLogs.map(l =>
+                `${l.time}\t${l.source}\t${l.level}\t${l.message}`
+            ).join('\n');
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `logs-${currentEvent.event_code}-${new Date().toISOString().slice(0, 10)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Filter logs by source
+        document.getElementById('logFilter')?.addEventListener('change', (e) => {
+            logFilter = e.target.value;
+            document.querySelectorAll('#terminalBody .log-line').forEach(line => {
+                if (logFilter === 'all' || line.dataset.source === logFilter) {
+                    line.style.display = '';
+                } else {
+                    line.style.display = 'none';
+                }
+            });
+        });
+
+        // Settings
+        document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            try {
+                await DB.updateEvent(currentEvent.id, {
+                    title: document.getElementById('settingsTitle').value,
+                    description: document.getElementById('settingsDesc').value
+                });
+                
+                currentEvent.title = document.getElementById('settingsTitle').value;
+                document.getElementById('eventTitle').textContent = currentEvent.title;
+                document.getElementById('deleteText').textContent = currentEvent.title + ' ' + currentEvent.event_code;
+                alert('Settings saved!');
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        });
+
+        async function archiveEvent() {
+            if (confirm('Archive this event? It will be moved to the archive.')) {
+                await DB.archiveEvent(currentEvent.id);
+                window.location.href = '/dashboard';
+            }
+        }
+
+        document.getElementById('deleteInput').addEventListener('input', (e) => {
+            const expected = currentEvent.title + ' ' + currentEvent.event_code;
+            document.getElementById('deleteBtn').disabled = e.target.value !== expected;
+        });
+
+        async function deleteEvent() {
+            const expected = currentEvent.title + ' ' + currentEvent.event_code;
+            if (document.getElementById('deleteInput').value === expected) {
+                await DB.deleteEvent(currentEvent.id);
+                window.location.href = '/dashboard';
+            }
+        }
+
+        // ============================================================
+        // ENDPOINTS TAB
+        // ============================================================
+
+        // Auto-generate translator URL from Pod ID
+        function updateTranslatorUrl() {
+            const podId = document.getElementById('translatorPodId').value.trim();
+            const urlField = document.getElementById('translatorUrl');
+            if (podId) {
+                urlField.value = `https://${podId}-8000.proxy.runpod.net`;
+            } else {
+                urlField.value = '';
+            }
+        }
+
+        // Extract Pod ID from a full translator URL
+        function extractPodId(url) {
+            if (!url) return '';
+            // Match: https://{POD_ID}-8000.proxy.runpod.net
+            const match = url.match(/https?:\/\/(.+?)-8000\.proxy\.runpod\.net/);
+            return match ? match[1] : '';
+        }
+
+        const sharedModelPanel = new AsrModelSelection({eventCode});
+
+        async function loadEndpoints() {
+            try {
+                const res = await fetch(`/api/event/${eventCode}/endpoints`);
+                if (res.ok) {
+                    const config = await res.json();
+                    document.getElementById('whisperHost').value = config.host || '';
+                    document.getElementById('whisperPort').value = config.port || 9090;
+                    document.getElementById('whisperLanguage').value = config.language || 'ca';
+
+                    // Load Pod ID from stored URL
+                    const storedUrl = config.translator_url || '';
+                    const podId = extractPodId(storedUrl);
+                    document.getElementById('translatorPodId').value = podId;
+                    document.getElementById('translatorUrl').value = storedUrl;
+                    await sharedModelPanel.refresh();
+                }
+            } catch (e) {
+                console.log('Could not load endpoints:', e);
+            }
+        }
+
+        document.getElementById('endpointsForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const button = e.currentTarget.querySelector('button[type="submit"]');
+            if (button.disabled) return;
+            button.disabled = true;
+            const saved = document.getElementById('endpointsSaved');
+            saved.style.display = 'none';
+            const config = {
+                host: document.getElementById('whisperHost').value,
+                port: parseInt(document.getElementById('whisperPort').value),
+                language: document.getElementById('whisperLanguage').value,
+                translator_url: document.getElementById('translatorUrl').value,
+            };
+            try {
+                saved.textContent = await sharedModelPanel.saveEndpointForm(config);
+                saved.style.color = 'var(--success)';
+                saved.style.display = 'inline';
+            } catch (err) {
+                saved.textContent = err.message;
+                saved.style.color = 'var(--danger, #b42318)';
+                saved.style.display = 'inline';
+            } finally {
+                button.disabled = false;
+            }
+        });
+
+        // Load endpoints on init
+        loadEndpoints();
+
+        init();
+    </script>
+</body>
+</html>

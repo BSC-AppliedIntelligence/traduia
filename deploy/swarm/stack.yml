@@ -1,0 +1,490 @@
+# TraduIA Swarm stack (reference deployment: Docker Swarm + existing Traefik + Portainer).
+# Image defaults are the pins of release 2026.11.09-stable-prefix-rc1 (tag@digest); to use your own images set
+# BSC_BACKSTAGE_IMAGE, BSC_STAGE_IMAGE, WHISPERLIVE_IMAGE, BSC_MODELSKIT_IMAGE and/or LIVEKIT_IMAGE (see docs/developer-guide.md).
+# All settings come from the stack environment (see stack.env.example): no env files, no Docker secrets.
+#   TRADUIA_DOMAIN, TRADUIA_PUBLIC_IP, TRADUIA_NODE, FORWARDED_ALLOW_IPS          deployment-specific values
+#   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY                         backstage, stage
+#   POSTGRES_PASSWORD, JWT_SECRET, SUPABASE_INIT_IMAGE, ADMIN_EMAILS (optional)   built-in Supabase only
+#   LIVEKIT_API_KEY, LIVEKIT_API_SECRET                                           backstage, stage, livekit
+#   TTS_PROVIDER, TTS_VOICE                                                       optional, backstage
+# Existing Traefik owns web/websecure, the certificate resolver and the traefik-public network.
+# All-in-one: the self-hosted Supabase (supabase-* services, see the marked block) is part of this stack. To use an
+# existing Supabase instead, remove that block and the supabase_db_data volume and set the SUPABASE_* variables.
+# Swarm GPU access requires the NVIDIA default runtime on the pinned node;
+# NVIDIA_VISIBLE_DEVICES alone does not enable GPUs with the runc runtime.
+# Both inference services intentionally share the host GPU (as in CI.15).
+# Media ports: only LiveKit publishes 7881/tcp and 7882/udp (host mode). They are NOT meant to be
+# reachable from the Internet: install host/livekit-media-fw first. Clients reach media through TURN/TLS
+# on turn.${TRADUIA_DOMAIN}:443 (Traefik TCP router). HTTP/WS stay private behind Traefik.
+# Each service defines its own https-redirect middleware: do not share middlewares between services.
+# The separate stage image is the retained legacy UI; the current caption UI is
+# https://backstage.${TRADUIA_DOMAIN}/stage/EVENT_CODE.
+version: '3.8'
+services:
+  backstage:
+    image: ${BSC_BACKSTAGE_IMAGE:-ghcr.io/bsc-appliedintelligence/traduia/backstage:2026.11.26@sha256:fc2e990b5992b72e886c3d5ed7fcd16ef134171f4b8559888c517c766812cd07}
+    networks:
+    - backend
+    - traefik-public
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+        - node.hostname == ${TRADUIA_NODE:?TRADUIA_NODE required}
+      restart_policy:
+        condition: any
+        delay: 5s
+      update_config:
+        parallelism: 1
+        order: stop-first
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+      labels:
+        traefik.enable: 'true'
+        traefik.swarm.network: traefik-public
+        traefik.http.routers.traduia-backstage.rule: Host(`${TRADUIA_DOMAIN}`) || Host(`backstage.${TRADUIA_DOMAIN}`)
+        traefik.http.routers.traduia-backstage.entrypoints: websecure
+        traefik.http.routers.traduia-backstage.tls: 'true'
+        traefik.http.routers.traduia-backstage.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-le}
+        traefik.http.routers.traduia-backstage.service: traduia-backstage
+        traefik.http.services.traduia-backstage.loadbalancer.server.port: '8000'
+        traefik.http.routers.traduia-backstage-http.rule: Host(`${TRADUIA_DOMAIN}`) || Host(`backstage.${TRADUIA_DOMAIN}`)
+        traefik.http.routers.traduia-backstage-http.entrypoints: web
+        traefik.http.routers.traduia-backstage-http.middlewares: traduia-backstage-https
+        traefik.http.routers.traduia-backstage-http.service: traduia-backstage
+        traefik.http.middlewares.traduia-backstage-https.redirectscheme.scheme: https
+        traefik.http.middlewares.traduia-backstage-https.redirectscheme.permanent: 'true'
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+    environment:
+      # Secrets and endpoints come from the stack environment, not from env files
+      SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL required}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?SUPABASE_ANON_KEY required}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:?SUPABASE_SERVICE_KEY required}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY required}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET required}
+      # TTS needs a Google credentials file (GOOGLE_APPLICATION_CREDENTIALS) that is not provisioned here
+      TTS_PROVIDER: ${TTS_PROVIDER:-google_regular}
+      TTS_VOICE: ${TTS_VOICE:-}
+      APP_URL: https://backstage.${TRADUIA_DOMAIN}
+      LIVEKIT_URL: wss://livekit.${TRADUIA_DOMAIN}
+      LIVEKIT_INTERNAL_URL: ws://livekit:7880
+      GOOGLE_APPLICATION_CREDENTIALS: ''
+      WHISPER_USE_VAD: 'true'
+      WHISPER_NO_SPEECH_THRESH: '0.35'
+      WHISPER_ACTIVE_TIMEOUT_S: '1.0'
+      WHISPER_CLIP_AUDIO: 'false'
+      WHISPER_SAME_OUTPUT_THRESHOLD: '5'
+      WHISPER_VAD_PARAMETERS: '{"threshold":0.5}'
+      WHISPER_MAX_UNCOMMITTED_AUDIO_S: '10'
+      WHISPER_CONTEXT_OVERLAP_S: '5'
+      WHISPER_TIMEOUT_REVISION_BUFFER_MS: '500'
+      LATENCY_LOGGING: 'true'
+      SHARED_ASR_ENABLED: 'true'
+      WHISPER_MODEL_READY_TIMEOUT_S: '1800'
+      WHISPER_MODEL_SELECTION_REQUIRED: 'true'
+      BSC_TRANSLATION_MAX_WAIT_S: '2.0'
+      BSC_TRANSLATION_SENTENCE_CONTEXT: 'true'
+      ASR_DEPLOYMENT_PROFILE: production
+      BACKSTAGE_RECORDINGS_DIR: /app/recordings
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:?FORWARDED_ALLOW_IPS required (Traefik subnet)}
+    volumes:
+    - type: bind
+      source: ${TRADUIA_DATA_DIR:-/data/traduia}/recordings/backstage
+      target: /app/recordings
+  stage:
+    image: ${BSC_STAGE_IMAGE:-ghcr.io/bsc-appliedintelligence/traduia/stage:2026.11.26@sha256:e0977766a862a646c738e7110e799768118b2ddf4c5288468960272a269c6f5a}
+    networks:
+    - backend
+    - traefik-public
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+        - node.hostname == ${TRADUIA_NODE:?TRADUIA_NODE required}
+      restart_policy:
+        condition: any
+        delay: 5s
+      update_config:
+        parallelism: 1
+        order: stop-first
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+      labels:
+        traefik.enable: 'true'
+        traefik.swarm.network: traefik-public
+        traefik.http.routers.traduia-stage.rule: Host(`stage.${TRADUIA_DOMAIN}`)
+        traefik.http.routers.traduia-stage.entrypoints: websecure
+        traefik.http.routers.traduia-stage.tls: 'true'
+        traefik.http.routers.traduia-stage.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-le}
+        traefik.http.routers.traduia-stage.service: traduia-stage
+        traefik.http.services.traduia-stage.loadbalancer.server.port: '8080'
+        traefik.http.routers.traduia-stage-http.rule: Host(`stage.${TRADUIA_DOMAIN}`)
+        traefik.http.routers.traduia-stage-http.entrypoints: web
+        traefik.http.routers.traduia-stage-http.middlewares: traduia-stage-https
+        traefik.http.middlewares.traduia-stage-https.redirectscheme.scheme: https
+        traefik.http.middlewares.traduia-stage-https.redirectscheme.permanent: 'true'
+        traefik.http.routers.traduia-stage-http.service: traduia-stage
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL required}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?SUPABASE_ANON_KEY required}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:?SUPABASE_SERVICE_KEY required}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY required}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET required}
+  whisperlive:
+    image: ${WHISPERLIVE_IMAGE:-ghcr.io/bsc-appliedintelligence/traduia/whisperlive:2026.11.26@sha256:5ff6b2c492baf84a968646685954eca4bc728f685563223b3b08e071f4601564}
+    networks:
+    - backend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+        - node.hostname == ${TRADUIA_NODE:?TRADUIA_NODE required}
+      restart_policy:
+        condition: any
+        delay: 5s
+      update_config:
+        parallelism: 1
+        order: stop-first
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+      labels:
+        traefik.enable: 'false'
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+    environment:
+      WHISPER_MODEL_SELECTION_STATE: /workspace/.cache/whisper-live/model-selection.json
+      WHISPER_PREFIX_MODELS: small,systran-large,bsc-large
+      HF_HOME: /workspace/.cache/huggingface
+      HUGGINGFACE_HUB_CACHE: /workspace/.cache/huggingface/hub
+      TRANSFORMERS_CACHE: /workspace/.cache/huggingface/transformers
+      XDG_CACHE_HOME: /workspace/.cache
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    command:
+    - python3
+    - run_server.py
+    - --port
+    - '9090'
+    - --backend
+    - faster_whisper
+    - --faster_whisper_custom_model_path
+    - Systran/faster-whisper-large-v3
+    - --cache_path
+    - /workspace/.cache/whisper-live
+    - --max_clients
+    - '4'
+    - --max_connection_time
+    - '3600'
+    - --batch_max_size
+    - '8'
+    - --batch_window_ms
+    - '50'
+    volumes:
+    - type: bind
+      source: ${TRADUIA_DATA_DIR:-/data/traduia}/cache/whisperlive
+      target: /workspace
+  modelskit:
+    image: ${BSC_MODELSKIT_IMAGE:-ghcr.io/bsc-appliedintelligence/traduia/modelskit:2026.11.26@sha256:d9d9739f57f2621ba931f0d48d8ac14728b0bdd07f88fe8f20d2dba94b9dd5dc}
+    networks:
+    - backend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+        - node.hostname == ${TRADUIA_NODE:?TRADUIA_NODE required}
+      restart_policy:
+        condition: any
+        delay: 5s
+      update_config:
+        parallelism: 1
+        order: stop-first
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+      labels:
+        traefik.enable: 'false'
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+    environment:
+      HF_HOME: /workspace/.hf_cache
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    volumes:
+    - type: bind
+      source: ${TRADUIA_DATA_DIR:-/data/traduia}/cache/modelskit
+      target: /workspace
+  livekit:
+    image: ${LIVEKIT_IMAGE:-docker.io/livekit/livekit-server:v1.13.1@sha256:4d1cc81b039b236b2b2580714cb5d89321a7313e604274f7131cf76f7a43ef80}
+    networks:
+    - backend
+    - traefik-public
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+        - node.hostname == ${TRADUIA_NODE:?TRADUIA_NODE required}
+      restart_policy:
+        condition: any
+        delay: 5s
+      update_config:
+        parallelism: 1
+        order: stop-first
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+      labels:
+        traefik.enable: 'true'
+        traefik.swarm.network: traefik-public
+        traefik.http.routers.traduia-livekit.rule: Host(`livekit.${TRADUIA_DOMAIN}`)
+        traefik.http.routers.traduia-livekit.entrypoints: websecure
+        traefik.http.routers.traduia-livekit.tls: 'true'
+        traefik.http.routers.traduia-livekit.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-le}
+        traefik.http.routers.traduia-livekit.service: traduia-livekit
+        traefik.http.services.traduia-livekit.loadbalancer.server.port: '7880'
+        traefik.http.routers.traduia-livekit-http.rule: Host(`livekit.${TRADUIA_DOMAIN}`)
+        traefik.http.routers.traduia-livekit-http.entrypoints: web
+        traefik.http.routers.traduia-livekit-http.middlewares: traduia-livekit-https
+        traefik.http.routers.traduia-livekit-http.service: traduia-livekit
+        traefik.http.middlewares.traduia-livekit-https.redirectscheme.scheme: https
+        traefik.http.middlewares.traduia-livekit-https.redirectscheme.permanent: 'true'
+        # TURN over TLS on 443: relay for clients that cannot reach the media ports directly.
+        # Traefik terminates TLS (certificate resolver); LiveKit TURN listens on plain TCP 5349 (external_tls).
+        traefik.tcp.routers.traduia-livekit-turn.rule: HostSNI(`turn.${TRADUIA_DOMAIN}`)
+        traefik.tcp.routers.traduia-livekit-turn.entrypoints: websecure
+        traefik.tcp.routers.traduia-livekit-turn.tls: 'true'
+        traefik.tcp.routers.traduia-livekit-turn.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-le}
+        traefik.tcp.routers.traduia-livekit-turn.service: traduia-livekit-turn
+        traefik.tcp.services.traduia-livekit-turn.loadbalancer.server.port: '5349'
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+    environment:
+      LIVEKIT_CONFIG: |
+        port: 7880
+        bind_addresses:
+          - 0.0.0.0
+        rtc:
+          tcp_port: 7881
+          udp_port: 7882
+          use_external_ip: false
+          node_ip: ${TRADUIA_PUBLIC_IP:?TRADUIA_PUBLIC_IP required}
+          # Only use the docker_gwbridge interface: traffic to host-mode published ports arrives there. With node_ip
+          # set, every interface maps to the same public candidate and all but the first are dropped as duplicates,
+          # so LiveKit would ignore the TURN relay's connectivity checks.
+          ips:
+            includes:
+              - ${LIVEKIT_GWBRIDGE_CIDR:-172.18.0.0/16}
+        turn:
+          enabled: true
+          domain: turn.${TRADUIA_DOMAIN}
+          tls_port: 5349
+          external_tls: true
+        keys:
+          ${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
+    # Media ports, host mode. LiveKit advertises the public IP and the TURN relay inside this container reaches
+    # LiveKit through that address (hairpin via the host), so something must listen on it. They must NOT be reachable
+    # from the Internet: the host firewall in host/livekit-media-fw drops external traffic to them.
+    ports:
+    - target: 7881   # WebRTC TCP fallback
+      published: 7881
+      protocol: tcp
+      mode: host
+    - target: 7882   # WebRTC UDP mux
+      published: 7882
+      protocol: udp
+      mode: host
+
+  # ====================================================================================================================
+  # Self-hosted Supabase: supabase-db (Postgres), supabase-auth (GoTrue), supabase-rest (PostgREST) and the one-shot
+  # supabase-init job, plus the volume supabase_db_data at the end of this file. It makes the deployment all-in-one.
+  #
+  # USING AN EXISTING SUPABASE (self-hosted elsewhere, or Supabase cloud)? Delete this whole block (the four
+  # services up to the line "END of the self-hosted Supabase block") and the supabase_db_data volume, then set
+  # SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_KEY to that instance. The variables POSTGRES_PASSWORD,
+  # JWT_SECRET, ADMIN_EMAILS and SUPABASE_INIT_IMAGE are then not needed. The database still needs TraduIA's schema:
+  # see swarm/README.md ("Using an existing Supabase").
+  # ====================================================================================================================
+  supabase-db:
+    image: supabase/postgres:15.8.1.085
+    networks:
+      - backend
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      PGPORT: '5432'
+      POSTGRES_PORT: '5432'
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: postgres
+      POSTGRES_DB: postgres
+    volumes:
+      - supabase_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.hostname == ${TRADUIA_NODE:?TRADUIA_NODE required}
+      restart_policy:
+        condition: any
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+
+  supabase-auth:
+    image: supabase/gotrue:v2.186.0
+    networks:
+      - backend
+      - traefik-public
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: '9999'
+      API_EXTERNAL_URL: https://supabase.${TRADUIA_DOMAIN}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@supabase-db:5432/postgres
+      GOTRUE_SITE_URL: https://${TRADUIA_DOMAIN}
+      GOTRUE_URI_ALLOW_LIST: https://${TRADUIA_DOMAIN}/**,https://backstage.${TRADUIA_DOMAIN}/**,http://localhost:3000/**
+      GOTRUE_DISABLE_SIGNUP: 'false'
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: '3600'
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: 'true'
+      # No SMTP: sign-ups are auto-confirmed. Password-reset and other emails do not work until SMTP is configured.
+      GOTRUE_MAILER_AUTOCONFIRM: 'true'
+      GOTRUE_EXTERNAL_PHONE_ENABLED: 'false'
+      # headers supabase-js sends to the auth endpoints; allow them for cross-origin browser calls
+      GOTRUE_CORS_ALLOWED_HEADERS: apikey,x-supabase-api-version
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+      labels:
+        traefik.enable: 'true'
+        traefik.swarm.network: traefik-public
+        traefik.http.middlewares.supabase-auth-strip.stripprefix.prefixes: /auth/v1
+        traefik.http.middlewares.supabase-auth-https.redirectscheme.scheme: https
+        traefik.http.middlewares.supabase-auth-https.redirectscheme.permanent: 'true'
+        traefik.http.routers.supabase-auth.rule: Host(`supabase.${TRADUIA_DOMAIN}`) && PathPrefix(`/auth/v1`)
+        traefik.http.routers.supabase-auth.entrypoints: websecure
+        traefik.http.routers.supabase-auth.tls: 'true'
+        traefik.http.routers.supabase-auth.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-le}
+        traefik.http.routers.supabase-auth.middlewares: supabase-auth-strip
+        traefik.http.routers.supabase-auth.service: supabase-auth
+        traefik.http.routers.supabase-auth-http.rule: Host(`supabase.${TRADUIA_DOMAIN}`) && PathPrefix(`/auth/v1`)
+        traefik.http.routers.supabase-auth-http.entrypoints: web
+        traefik.http.routers.supabase-auth-http.middlewares: supabase-auth-https
+        traefik.http.routers.supabase-auth-http.service: supabase-auth
+        traefik.http.services.supabase-auth.loadbalancer.server.port: '9999'
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+
+  supabase-rest:
+    image: postgrest/postgrest:v13.0.8
+    networks:
+      - backend
+      - traefik-public
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD}@supabase-db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: 'false'
+      PGRST_APP_SETTINGS_JWT_SECRET: ${JWT_SECRET}
+      PGRST_APP_SETTINGS_JWT_EXP: '3600'
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+      labels:
+        traefik.enable: 'true'
+        traefik.swarm.network: traefik-public
+        traefik.http.middlewares.supabase-rest-strip.stripprefix.prefixes: /rest/v1
+        traefik.http.middlewares.supabase-rest-https.redirectscheme.scheme: https
+        traefik.http.middlewares.supabase-rest-https.redirectscheme.permanent: 'true'
+        traefik.http.routers.supabase-rest.rule: Host(`supabase.${TRADUIA_DOMAIN}`) && PathPrefix(`/rest/v1`)
+        traefik.http.routers.supabase-rest.entrypoints: websecure
+        traefik.http.routers.supabase-rest.tls: 'true'
+        traefik.http.routers.supabase-rest.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:-le}
+        traefik.http.routers.supabase-rest.middlewares: supabase-rest-strip
+        traefik.http.routers.supabase-rest.service: supabase-rest
+        traefik.http.routers.supabase-rest-http.rule: Host(`supabase.${TRADUIA_DOMAIN}`) && PathPrefix(`/rest/v1`)
+        traefik.http.routers.supabase-rest-http.entrypoints: web
+        traefik.http.routers.supabase-rest-http.middlewares: supabase-rest-https
+        traefik.http.routers.supabase-rest-http.service: supabase-rest
+        traefik.http.services.supabase-rest.loadbalancer.server.port: '3000'
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+
+  # One-shot job (swarm job mode) running the db-init image (backstage/db): waits for the database, sets the role
+  # passwords and JWT settings, applies the SQL migrations once each (tracked in public.app_schema_migrations) and
+  # loads ADMIN_EMAILS (approved + admin at sign-up, existing users promoted, nobody demoted).
+  # Re-runs whenever the stack spec/env changes (e.g. ADMIN_EMAILS). GoTrue/PostgREST retry until it has run.
+  supabase-init:
+    image: ${SUPABASE_INIT_IMAGE:-ghcr.io/bsc-appliedintelligence/traduia/db-init:2026.11.26@sha256:6c6928af8ea1e9f1aa4b0ad95db6aa929d0aba1831bd000fc48b908f31c854bd}
+    networks:
+      - backend
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      PGHOST: supabase-db
+    deploy:
+      mode: replicated-job
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+      placement:
+        constraints:
+          - node.hostname == ${TRADUIA_NODE:?TRADUIA_NODE required}
+
+  # ===================== END of the self-hosted Supabase block =====================
+
+networks:
+  backend:
+    driver: overlay
+  traefik-public:
+    external: true
+
+volumes:
+  supabase_db_data:

@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Captions - Link3rs</title>
+    <style>
+        :root {
+            --font-size: 48px;
+            --line-height: 60px;
+            --text-color: #ffffff;
+            --text-color-dim: rgba(255, 255, 255, 0.5);
+            --text-color-faded: rgba(255, 255, 255, 0.25);
+            --bg-color: #000000;
+            --box-bg-color: rgba(0, 0, 0, 0.3);
+            --box-width: 90%;
+            --box-height: 200px;
+            --transition-duration: 0.4s;
+            --font-family: Arial, sans-serif;
+            --letter-spacing: 0px;
+        }
+
+        body.light-mode {
+            --bg-color: #ffffff;
+            --box-bg-color: rgba(255, 255, 255, 0.3);
+            --text-color: #000000;
+            --text-color-dim: rgba(0, 0, 0, 0.5);
+            --text-color-faded: rgba(0, 0, 0, 0.25);
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: var(--font-family);
+        }
+
+        #subtitle-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: var(--box-width);
+            max-width: 1400px;
+            height: var(--box-height);
+            border: 2px solid rgba(128, 128, 128, 0.6);
+            background: var(--box-bg-color);
+            box-sizing: border-box;
+            overflow: hidden;
+            cursor: none; /* Ocultar cursor en área de captura */
+        }
+
+        /* Contenedor de líneas - posición relativa */
+        #lines-container {
+            position: absolute;
+            left: 20px;
+            right: 20px;
+            bottom: 10px;
+            height: calc(var(--line-height) * 3);
+        }
+
+        /* Cada línea tiene posición absoluta y transiciones propias */
+        .subtitle-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: var(--line-height);
+            font-size: var(--font-size);
+            line-height: var(--line-height);
+            color: var(--text-color);
+            font-family: var(--font-family);
+            letter-spacing: var(--letter-spacing);
+            transition: bottom var(--transition-duration) ease-out,
+                        opacity var(--transition-duration) ease-out,
+                        color var(--transition-duration) ease-out;
+        }
+
+        /* Estados de color según posición */
+        .subtitle-line.pos-0 { color: var(--text-color); }      /* Línea actual - brillante */
+        .subtitle-line.pos-1 { color: var(--text-color-dim); }  /* Segunda - tenue */
+        .subtitle-line.pos-2 { color: var(--text-color-faded); } /* Tercera - más tenue */
+        .subtitle-line.exiting { opacity: 0; }                   /* Saliendo - invisible */
+
+        /* CONTROLES */
+        #controls-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            padding: 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 10px;
+            z-index: 1000;
+            align-items: center;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 10px;
+            background: rgba(0,0,0,0.04);
+            border-radius: 5px;
+        }
+
+        .control-label { color: #888; font-size: 11px; }
+        .control-btn {
+            background: rgba(0,0,0,0.08);
+            border: none;
+            color: #333;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .control-btn:hover { background: rgba(0,0,0,0.12); }
+
+        /* Chuleta de atajos de teclado - Horizontal arriba */
+        #shortcuts-help {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(0,0,0,0.1);
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 10px;
+            color: #888;
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        #shortcuts-help h4 {
+            margin: 0;
+            color: #666;
+            font-size: 10px;
+            font-weight: 500;
+        }
+        #shortcuts-help .shortcut {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        #shortcuts-help .key {
+            background: rgba(0,0,0,0.08);
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+            color: #555;
+            font-size: 9px;
+        }
+        body.capture-mode #shortcuts-help { display: none !important; }
+
+        #statusDot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: #666;
+        }
+        #statusDot.live { background: #0f0; animation: pulse 2s infinite; }
+        #statusDot.connecting { background: #ff0; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        #statusText { color: #aaa; font-size: 11px; }
+
+        select, input[type="color"], input[type="number"], input[type="text"] {
+            background: rgba(0,0,0,0.05);
+            border: 1px solid rgba(0,0,0,0.15);
+            color: #333;
+            padding: 4px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        input[type="number"] { width: 60px; }
+        input[type="text"].width-input { width: 80px; }
+
+        body.capture-mode #controls-panel { display: none !important; }
+        body.capture-mode { background-color: transparent !important; }
+        body.capture-mode #subtitle-box { border-color: transparent; background: transparent; }
+    </style>
+</head>
+<body>
+    <div id="subtitle-box">
+        <div id="lines-container"></div>
+    </div>
+
+    <div id="controls-panel">
+        <div class="control-group">
+            <div id="statusDot"></div>
+            <span id="statusText">Cargando...</span>
+        </div>
+        <div class="control-group">
+            <span class="control-label">Canal:</span>
+            <select id="channelSelect" onchange="changeChannel(this.value)">
+                <option value="">Cargando...</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <span class="control-label">Líneas:</span>
+            <button class="control-btn" id="lines-toggle">3</button>
+        </div>
+        <div class="control-group">
+            <button class="control-btn" id="font-decrease">A-</button>
+            <span class="control-label" id="font-display">48</span>
+            <button class="control-btn" id="font-increase">A+</button>
+        </div>
+        <div class="control-group">
+            <button class="control-btn" id="theme-toggle">🌙</button>
+        </div>
+        <div class="control-group">
+            <span class="control-label">Color:</span>
+            <input type="color" id="textColor" value="#ffffff">
+        </div>
+        <div class="control-group">
+            <span class="control-label">Ancho:</span>
+            <input type="text" id="boxWidth" class="width-input" value="90%">
+        </div>
+        <div class="control-group">
+            <span class="control-label">Alto:</span>
+            <input type="number" id="boxHeight" value="200">
+        </div>
+        <div class="control-group">
+            <span class="control-label">Fuente:</span>
+            <select id="fontFamily">
+                <option value="Arial, sans-serif">Normal</option>
+                <option value="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">System</option>
+                <option value="'SF Mono', 'Courier New', monospace">Monospace</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <span class="control-label">Espaciado:</span>
+            <input type="number" id="letterSpacing" value="0" min="-10" max="20" step="1" style="width:50px;">
+            <span class="control-label">px</span>
+        </div>
+        <div class="control-group">
+            <button class="control-btn" id="clear-btn">🗑️</button>
+        </div>
+        <div class="control-group">
+            <button class="control-btn" id="capture-btn">📷</button>
+        </div>
+    </div>
+
+    <!-- Chuleta de atajos de teclado (horizontal) -->
+    <div id="shortcuts-help">
+        <h4>⌨️</h4>
+        <div class="shortcut"><span class="key">C</span>Captura</div>
+        <div class="shortcut"><span class="key">T</span>Tema</div>
+        <div class="shortcut"><span class="key">L</span>Líneas</div>
+        <div class="shortcut"><span class="key">H</span>Panel</div>
+        <div class="shortcut"><span class="key">↑↓</span>Fuente</div>
+        <div class="shortcut"><span class="key">Esc</span>Limpiar</div>
+    </div>
+
+    <script>
+        // Server-injected configuration (from .env)
+        window.__SUPABASE_URL__ = '{{ SUPABASE_URL }}';
+        window.__SUPABASE_ANON_KEY__ = '{{ SUPABASE_ANON_KEY }}';
+        window.__APP_URL__ = '{{ APP_URL }}';
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/static/js/config.js"></script>
+    
+    <script>
+        const eventCode = '{{ event_code }}';
+        let ws = null;
+        let currentChannel = '';
+        let availableChannels = [];
+        let reconnectTimer = null;
+
+        let config = {
+            lines: 3,
+            fontSize: 48,
+            fontFamily: 'Arial, sans-serif',
+            letterSpacing: 0,
+            textColor: '#ffffff',
+            boxWidth: '90%',
+            boxHeight: 200,
+            lightMode: false
+        };
+
+        // ============================================
+        // PERSISTENCIA (localStorage)
+        // ============================================
+        const STORAGE_KEY = 'captions_config_' + eventCode;
+
+        function saveConfig() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+            } catch (e) { console.warn('No se pudo guardar config:', e); }
+        }
+
+        function loadConfig() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    config = { ...config, ...parsed };
+                    return true;
+                }
+            } catch (e) { console.warn('No se pudo cargar config:', e); }
+            return false;
+        }
+
+        // ============================================
+        // ESTADO
+        // ============================================
+        // Cada línea es un objeto: { text: string, element: HTMLElement }
+        // lines[0] = línea de abajo (la más reciente)
+        // lines[1] = línea del medio
+        // lines[2] = línea de arriba (la más vieja)
+        
+        let lines = [];
+        let currentLineText = '';
+        let lineIdCounter = 0;
+        
+        // Control de animación - NO procesar nuevas palabras mientras anima
+        let isAnimating = false;
+        let pendingWords = [];  // Cola de palabras esperando
+
+        // ============================================
+        // MEDICIÓN
+        // ============================================
+        const measureCanvas = document.createElement('canvas');
+        const measureCtx = measureCanvas.getContext('2d');
+        
+        function measureText(text) {
+            // Usar la primera fuente del font-family
+            const fontName = config.fontFamily.split(',')[0].replace(/'/g, '').trim();
+            measureCtx.font = `${config.fontSize}px ${fontName}`;
+            // Añadir letter-spacing al ancho (aproximación)
+            const baseWidth = measureCtx.measureText(text).width;
+            const spacingAdjust = text.length * config.letterSpacing;
+            return baseWidth + spacingAdjust;
+        }
+        
+        function getMaxWidth() {
+            const box = document.getElementById('subtitle-box');
+            return box.clientWidth - 60;
+        }
+        
+        function getLineHeight() {
+            return config.fontSize * 1.25;
+        }
+
+        // ============================================
+        // CREAR ELEMENTO DE LÍNEA
+        // ============================================
+        function createLineElement(text, position) {
+            const el = document.createElement('div');
+            el.className = 'subtitle-line';
+            el.textContent = text;
+            el.id = 'line-' + (lineIdCounter++);
+            
+            // Posición inicial (desde abajo)
+            const lineHeight = getLineHeight();
+            el.style.bottom = (position * lineHeight) + 'px';
+            
+            // Clase de posición para el color
+            el.classList.add('pos-' + position);
+            
+            document.getElementById('lines-container').appendChild(el);
+            return el;
+        }
+
+        // ============================================
+        // ACTUALIZAR POSICIONES DE TODAS LAS LÍNEAS
+        // ============================================
+        function updateLinePositions() {
+            const lineHeight = getLineHeight();
+            
+            lines.forEach((line, index) => {
+                // index 0 = línea de abajo (más reciente)
+                // index 1 = línea del medio
+                // index 2 = línea de arriba
+                
+                // Actualizar posición
+                line.element.style.bottom = (index * lineHeight) + 'px';
+                
+                // Actualizar clase de color
+                line.element.classList.remove('pos-0', 'pos-1', 'pos-2', 'exiting');
+                
+                if (index < config.lines) {
+                    line.element.classList.add('pos-' + index);
+                }
+            });
+        }
+
+        // ============================================
+        // AÑADIR NUEVA LÍNEA (con animación)
+        // ============================================
+        function pushNewLine(text) {
+            const lineHeight = getLineHeight();
+            
+            // Marcar que estamos animando
+            isAnimating = true;
+            
+            // Si hay más líneas de las permitidas, la de arriba sale
+            if (lines.length >= config.lines) {
+                const exitingLine = lines[lines.length - 1];
+                
+                // Animar salida: subir más y desvanecer
+                exitingLine.element.classList.add('exiting');
+                exitingLine.element.style.bottom = (config.lines * lineHeight) + 'px';
+                
+                // Eliminar del DOM después de la animación
+                setTimeout(() => {
+                    if (exitingLine.element.parentNode) {
+                        exitingLine.element.parentNode.removeChild(exitingLine.element);
+                    }
+                }, 400);
+                
+                // Quitar del array
+                lines.pop();
+            }
+            
+            // Crear nueva línea en posición 0 (abajo)
+            const newElement = createLineElement(text, 0);
+            
+            // Añadir al principio del array
+            lines.unshift({ text: text, element: newElement });
+            
+            // Actualizar posiciones de todas las líneas (con animación CSS)
+            requestAnimationFrame(() => {
+                updateLinePositions();
+            });
+            
+            // Después de la animación, procesar palabras pendientes
+            setTimeout(() => {
+                isAnimating = false;
+                processPendingWords();
+            }, 450);  // Un poco más que la duración de la animación (400ms)
+        }
+
+        // ============================================
+        // ACTUALIZAR LÍNEA ACTUAL (sin crear nueva)
+        // ============================================
+        function updateCurrentLine(text) {
+            if (lines.length === 0) {
+                // No hay líneas, crear la primera
+                const el = createLineElement(text, 0);
+                lines.unshift({ text: text, element: el });
+            } else {
+                // Actualizar texto de la línea más reciente
+                lines[0].text = text;
+                lines[0].element.textContent = text;
+            }
+        }
+
+        // ============================================
+        // PROCESAR PALABRAS PENDIENTES
+        // ============================================
+        function processPendingWords() {
+            if (isAnimating || pendingWords.length === 0) return;
+            
+            const maxWidth = getMaxWidth();
+            
+            while (pendingWords.length > 0 && !isAnimating) {
+                const word = pendingWords.shift();
+                const testLine = currentLineText ? currentLineText + ' ' + word : word;
+                
+                if (measureText(testLine) <= maxWidth) {
+                    // Cabe en la línea actual
+                    currentLineText = testLine;
+                    updateCurrentLine(currentLineText);
+                } else {
+                    // Línea llena - crear nueva línea y salir del loop
+                    // (la animación bloqueará el resto)
+                    if (currentLineText) {
+                        pushNewLine(word);
+                        currentLineText = word;
+                    } else {
+                        currentLineText = word;
+                        updateCurrentLine(currentLineText);
+                    }
+                    break;  // La animación procesará el resto
+                }
+            }
+        }
+
+        // ============================================
+        // AÑADIR TEXTO FINAL
+        // ============================================
+        function addFinalText(text) {
+            if (!text || !text.trim()) return;
+            
+            const words = text.trim().split(/\s+/);
+            
+            // Añadir todas las palabras a la cola
+            pendingWords.push(...words);
+            
+            // Si no estamos animando, procesar inmediatamente
+            if (!isAnimating) {
+                processPendingWords();
+            }
+        }
+
+        // ============================================
+        // MANEJO DE MENSAJES - SOLO FINALES
+        // ============================================
+        function handleSubtitle(data) {
+            if (data.is_partial) return;
+            
+            const text = data.text ? data.text.trim() : '';
+            if (!text) return;
+            
+            console.log(`📝 FINAL: "${text}"`);
+            addFinalText(text);
+        }
+
+        // ============================================
+        // WEBSOCKET
+        // ============================================
+        function connectWebSocket() {
+            if (!currentChannel) return;
+            if (ws) { ws.close(); ws = null; }
+            
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/captions/${eventCode}/${currentChannel}`;
+            
+            document.getElementById('statusDot').className = 'connecting';
+            document.getElementById('statusText').textContent = 'Conectando...';
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                document.getElementById('statusDot').className = 'live';
+                document.getElementById('statusText').textContent = currentChannel.toUpperCase();
+                if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+            };
+            
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'subtitle') handleSubtitle(data);
+                } catch (e) { console.error('Parse error:', e); }
+            };
+            
+            ws.onclose = () => {
+                document.getElementById('statusDot').className = '';
+                document.getElementById('statusText').textContent = 'Desconectado';
+                reconnectTimer = setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        // ============================================
+        // CONTROLES
+        // ============================================
+        function changeChannel(ch) {
+            currentChannel = ch;
+            clearSubtitles();
+            connectWebSocket();
+        }
+        
+        function clearSubtitles() {
+            lines.forEach(l => {
+                if (l.element.parentNode) l.element.parentNode.removeChild(l.element);
+            });
+            lines = [];
+            currentLineText = '';
+            isAnimating = false;
+            pendingWords = [];
+        }
+        
+        function setNumLines(n) {
+            config.lines = n;
+            document.getElementById('lines-toggle').textContent = n;
+            const h = (n + 0.5) * getLineHeight();
+            config.boxHeight = Math.round(h);
+            document.documentElement.style.setProperty('--box-height', h + 'px');
+            document.getElementById('boxHeight').value = config.boxHeight;
+
+            // Ajustar altura del contenedor
+            document.getElementById('lines-container').style.height =
+                (n * getLineHeight()) + 'px';
+            saveConfig();
+        }
+
+        function setFontSize(size) {
+            config.fontSize = Math.max(24, Math.min(96, size));
+            document.getElementById('font-display').textContent = config.fontSize;
+            document.documentElement.style.setProperty('--font-size', config.fontSize + 'px');
+            document.documentElement.style.setProperty('--line-height', getLineHeight() + 'px');
+
+            // Recalcular posiciones
+            updateLinePositions();
+            saveConfig();
+        }
+
+        function toggleTheme() {
+            config.lightMode = !config.lightMode;
+            document.body.classList.toggle('light-mode', config.lightMode);
+            document.getElementById('theme-toggle').textContent = config.lightMode ? '☀️' : '🌙';
+            saveConfig();
+        }
+
+        function setTextColor(color) {
+            config.textColor = color;
+            document.documentElement.style.setProperty('--text-color', color);
+            const r = parseInt(color.slice(1,3), 16);
+            const g = parseInt(color.slice(3,5), 16);
+            const b = parseInt(color.slice(5,7), 16);
+            document.documentElement.style.setProperty('--text-color-dim', `rgba(${r},${g},${b},0.5)`);
+            document.documentElement.style.setProperty('--text-color-faded', `rgba(${r},${g},${b},0.25)`);
+            saveConfig();
+        }
+
+        function setBoxWidth(v) {
+            // Asegurar que el valor sea válido (%, px, vw, etc.)
+            config.boxWidth = v;
+            document.documentElement.style.setProperty('--box-width', v);
+            document.getElementById('subtitle-box').style.width = v;
+            saveConfig();
+        }
+        
+        function setBoxHeight(v) {
+            config.boxHeight = parseInt(v) || 200;
+            document.documentElement.style.setProperty('--box-height', config.boxHeight + 'px');
+            saveConfig();
+        }
+
+        function setFontFamily(family) {
+            config.fontFamily = family;
+            document.documentElement.style.setProperty('--font-family', family);
+            saveConfig();
+        }
+
+        function setLetterSpacing(spacing) {
+            config.letterSpacing = parseInt(spacing) || 0;
+            document.documentElement.style.setProperty('--letter-spacing', config.letterSpacing + 'px');
+            saveConfig();
+        }
+
+        function toggleCapture() { document.body.classList.toggle('capture-mode'); }
+        
+        function getFlag(lang) {
+            const flags = { en:'🇬🇧', es:'🇪🇸', fr:'🇫🇷', de:'🇩🇪', it:'🇮🇹', pt:'🇵🇹', original:'🎤' };
+            if (lang === 'ca') return '<img src="/static/img/banderaCatEmoji.webp" alt="CA" style="height:1.2em;width:auto;vertical-align:middle;">';
+            return flags[lang] || '🌐';
+        }
+
+        // ============================================
+        // APLICAR CONFIGURACIÓN GUARDADA
+        // ============================================
+        function applyConfig() {
+            // Aplicar todas las configuraciones sin guardar (ya están en config)
+            document.getElementById('lines-toggle').textContent = config.lines;
+            document.getElementById('font-display').textContent = config.fontSize;
+            document.getElementById('textColor').value = config.textColor;
+            document.getElementById('boxWidth').value = config.boxWidth;
+            document.getElementById('boxHeight').value = config.boxHeight;
+            document.getElementById('fontFamily').value = config.fontFamily;
+            document.getElementById('letterSpacing').value = config.letterSpacing;
+
+            // Aplicar CSS
+            document.documentElement.style.setProperty('--font-size', config.fontSize + 'px');
+            document.documentElement.style.setProperty('--line-height', getLineHeight() + 'px');
+            document.documentElement.style.setProperty('--box-width', config.boxWidth);
+            document.documentElement.style.setProperty('--box-height', config.boxHeight + 'px');
+            document.documentElement.style.setProperty('--font-family', config.fontFamily);
+            document.documentElement.style.setProperty('--letter-spacing', config.letterSpacing + 'px');
+
+            // Aplicar color de texto
+            const color = config.textColor;
+            document.documentElement.style.setProperty('--text-color', color);
+            const r = parseInt(color.slice(1,3), 16);
+            const g = parseInt(color.slice(3,5), 16);
+            const b = parseInt(color.slice(5,7), 16);
+            document.documentElement.style.setProperty('--text-color-dim', `rgba(${r},${g},${b},0.5)`);
+            document.documentElement.style.setProperty('--text-color-faded', `rgba(${r},${g},${b},0.25)`);
+
+            // Aplicar tema
+            document.body.classList.toggle('light-mode', config.lightMode);
+            document.getElementById('theme-toggle').textContent = config.lightMode ? '☀️' : '🌙';
+
+            // Aplicar ancho directamente al elemento
+            document.getElementById('subtitle-box').style.width = config.boxWidth;
+
+            // Ajustar contenedor de líneas
+            document.getElementById('lines-container').style.height =
+                (config.lines * getLineHeight()) + 'px';
+        }
+
+        // ============================================
+        // INIT
+        // ============================================
+        async function init() {
+            // Cargar configuración guardada
+            loadConfig();
+
+            try {
+                const resp = await fetch(`/api/public/event/${eventCode}`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    availableChannels = data.channels || [];
+                }
+            } catch (e) { console.error('Error:', e); }
+
+            const select = document.getElementById('channelSelect');
+            let opts = '<option value="original">🎤 Original</option>';
+            availableChannels.forEach(c => {
+                if (!c.is_original) opts += `<option value="${c.language}">${getFlag(c.language)} ${c.name}</option>`;
+            });
+            select.innerHTML = opts;
+
+            const firstTrans = availableChannels.find(c => !c.is_original);
+            currentChannel = firstTrans ? firstTrans.language : 'original';
+            select.value = currentChannel;
+
+            // Aplicar configuración (incluye setNumLines y setFontSize efectos)
+            applyConfig();
+
+            connectWebSocket();
+        }
+
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('lines-toggle').addEventListener('click', () => setNumLines(config.lines === 3 ? 2 : 3));
+            document.getElementById('font-decrease').addEventListener('click', () => setFontSize(config.fontSize - 4));
+            document.getElementById('font-increase').addEventListener('click', () => setFontSize(config.fontSize + 4));
+            document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+            document.getElementById('textColor').addEventListener('change', e => setTextColor(e.target.value));
+            document.getElementById('boxWidth').addEventListener('change', e => setBoxWidth(e.target.value));
+            document.getElementById('boxHeight').addEventListener('change', e => setBoxHeight(e.target.value));
+            document.getElementById('fontFamily').addEventListener('change', e => setFontFamily(e.target.value));
+            document.getElementById('letterSpacing').addEventListener('change', e => setLetterSpacing(e.target.value));
+            document.getElementById('letterSpacing').addEventListener('input', e => setLetterSpacing(e.target.value));
+            document.getElementById('clear-btn').addEventListener('click', clearSubtitles);
+            document.getElementById('capture-btn').addEventListener('click', toggleCapture);
+
+            document.addEventListener('keydown', e => {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                if (e.key === 'c') toggleCapture();
+                if (e.key === 'h') {
+                    const p = document.getElementById('controls-panel');
+                    p.style.display = p.style.display === 'none' ? 'flex' : 'none';
+                }
+                if (e.key === 't') toggleTheme();
+                if (e.key === 'l') setNumLines(config.lines === 3 ? 2 : 3);
+                if (e.key === 'ArrowUp') setFontSize(config.fontSize + 4);
+                if (e.key === 'ArrowDown') setFontSize(config.fontSize - 4);
+                if (e.key === 'Escape') clearSubtitles();
+            });
+            
+            setTimeout(init, 100);
+        });
+    </script>
+</body>
+</html>

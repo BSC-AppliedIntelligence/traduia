@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account - Link3rs Backstage</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a href="/dashboard" class="sidebar-logo">
+                    <img src="/static/img/bscTranslatorLogo.png" alt="BSC Translator">
+                </a>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/dashboard" class="nav-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                    Events
+                </a>
+                <a href="/archive" class="nav-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+                    Archive
+                </a>
+                <div class="nav-divider"></div>
+                <a href="/account" class="nav-item active">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                    Account
+                </a>
+                <button class="nav-item" onclick="Auth.signOut()">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                    Logout
+                </button>
+            </nav>
+            <div class="sidebar-branding">
+                <a href="https://www.link3rs.com" target="_blank"><img src="/static/img/builtByLink3rs.png" alt="Built by Link3rs"></a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="page-header">
+                <div>
+                    <h1 class="page-title">Account</h1>
+                    <p class="page-subtitle">Manage your account settings</p>
+                </div>
+            </header>
+
+            <div class="page-content">
+                <!-- Profile -->
+                <div class="card">
+                    <h3 class="card-title mb-3">Profile</h3>
+                    <form id="profileForm">
+                        <div class="form-group">
+                            <label class="form-label">Full Name</label>
+                            <input type="text" id="fullName" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Email</label>
+                            <input type="email" id="email" class="form-input" disabled>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </form>
+                </div>
+
+                <!-- Change Password -->
+                <div class="card mt-4">
+                    <h3 class="card-title mb-3">Change Password</h3>
+                    <form id="passwordForm">
+                        <div class="form-group">
+                            <label class="form-label">New Password</label>
+                            <input type="password" id="newPassword" class="form-input" minlength="6" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Confirm Password</label>
+                            <input type="password" id="confirmPassword" class="form-input" minlength="6" required>
+                        </div>
+                        <div id="passwordError" class="text-danger mb-3" style="font-size: 14px; display: none;"></div>
+                        <button type="submit" class="btn btn-secondary">Update Password</button>
+                    </form>
+                </div>
+
+                <!-- Account Info -->
+                <div class="card mt-4">
+                    <h3 class="card-title mb-3">Account Information</h3>
+                    <div style="font-size: 14px; color: var(--gray-400);">
+                        <p><strong style="color: var(--gray-300);">User ID:</strong> <span id="userId">-</span></p>
+                        <p class="mt-2"><strong style="color: var(--gray-300);">Member since:</strong> <span id="memberSince">-</span></p>
+                        <p class="mt-2"><strong style="color: var(--gray-300);">Status:</strong> <span class="badge badge-success" id="accountStatus">Active</span></p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Server-injected configuration (from .env)
+        window.__SUPABASE_URL__ = '{{ SUPABASE_URL }}';
+        window.__SUPABASE_ANON_KEY__ = '{{ SUPABASE_ANON_KEY }}';
+        window.__APP_URL__ = '{{ APP_URL }}';
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/static/js/config.js"></script>
+    <script src="/static/js/auth.js"></script>
+    <script>
+        let currentUser = null;
+        let currentProfile = null;
+
+        async function init() {
+            if (window.SUPABASE_CONFIG_ERROR) return;
+            
+            const auth = await Auth.requireAuth();
+            if (!auth) return;
+            
+            currentUser = await Auth.getUser();
+            currentProfile = auth.profile;
+            
+            // Fill form
+            document.getElementById('fullName').value = currentProfile?.full_name || '';
+            document.getElementById('email').value = currentUser.email;
+            document.getElementById('userId').textContent = currentUser.id;
+            document.getElementById('memberSince').textContent = new Date(currentUser.created_at).toLocaleDateString();
+        }
+
+        document.getElementById('profileForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const fullName = document.getElementById('fullName').value;
+            
+            const result = await Auth.updateProfile(currentUser.id, { full_name: fullName });
+            
+            if (result.success) {
+                alert('Profile updated!');
+            } else {
+                alert('Error: ' + result.error);
+            }
+        });
+
+        document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const errorEl = document.getElementById('passwordError');
+            
+            if (newPassword !== confirmPassword) {
+                errorEl.textContent = 'Passwords do not match';
+                errorEl.style.display = 'block';
+                return;
+            }
+            
+            errorEl.style.display = 'none';
+            
+            const result = await Auth.updatePassword(newPassword);
+            
+            if (result.success) {
+                alert('Password updated!');
+                document.getElementById('passwordForm').reset();
+            } else {
+                errorEl.textContent = result.error;
+                errorEl.style.display = 'block';
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor - Link3rs Backstage</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+        body {
+            background: var(--bg-primary);
+        }
+        
+        html, body {
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .monitor-layout {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .monitor-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            background: #ffffff;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .back-link {
+            color: var(--gray-500);
+            text-decoration: none;
+            font-size: 13px;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--white);
+        }
+        
+        .event-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--white);
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+        
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--gray-600);
+        }
+        
+        .connection-dot.connected {
+            background: #22c55e;
+            box-shadow: 0 0 8px #22c55e;
+        }
+        
+        .monitor-content {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 280px 1fr 320px;
+            grid-template-rows: 1fr;
+            height: calc(100vh - 53px);
+            min-height: 0;
+            overflow: hidden;
+        }
+        
+        /* Left Panel - Tracks */
+        .tracks-panel {
+            background: #fafafa;
+            border-right: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .panel-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .panel-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--gray-500);
+        }
+        
+        .tracks-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        
+        .track-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            margin-bottom: 4px;
+        }
+        
+        .track-item:hover {
+            background: rgba(0, 0, 0, 0.04);
+        }
+        
+        .track-item.active {
+            background: rgba(0, 0, 0, 0.06);
+        }
+        
+        .track-item.active .track-indicator {
+            background: #22c55e;
+            box-shadow: 0 0 8px #22c55e;
+        }
+        
+        .track-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--gray-600);
+            flex-shrink: 0;
+        }
+        
+        .track-flag {
+            font-size: 20px;
+        }
+        
+        .track-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .track-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--white);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .track-type {
+            font-size: 11px;
+            color: var(--gray-500);
+        }
+        
+        /* Audio Controls */
+        .audio-controls {
+            padding: 16px;
+            border-top: 1px solid var(--border-subtle);
+        }
+        
+        .volume-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .volume-icon {
+            color: var(--gray-500);
+        }
+        
+        .volume-slider {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 4px;
+            background: var(--gray-700);
+            border-radius: 2px;
+        }
+        
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--white);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .volume-value {
+            font-size: 12px;
+            color: var(--gray-500);
+            min-width: 35px;
+            text-align: right;
+        }
+        
+        .output-device-row {
+            margin-top: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .audio-output-select {
+            width: 100%;
+            padding: 8px 10px;
+            background: #ffffff;
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            color: var(--white);
+            font-size: 12px;
+            cursor: pointer;
+        }
+        
+        .audio-output-select:hover {
+            border-color: var(--gray-600);
+        }
+        
+        .audio-output-select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        /* Center Panel - Subtitles */
+        .subtitles-panel {
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+        }
+        
+        .subtitles-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            gap: 20px;
+            overflow-y: auto;
+        }
+        
+        .subtitle-box {
+            background: rgba(0, 0, 0, 0.02);
+            border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        
+        .subtitle-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--gray-500);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .subtitle-label .flag {
+            font-size: 14px;
+        }
+        
+        .subtitle-text {
+            font-size: 20px;
+            line-height: 1.5;
+            color: var(--white);
+            min-height: 60px;
+        }
+        
+        .subtitle-box.original {
+            border-left: 3px solid #3b82f6;
+        }
+        
+        .subtitle-box.translated {
+            border-left: 3px solid #22c55e;
+        }
+        
+        /* Play Button */
+        .play-controls {
+            padding: 20px 24px;
+            background: rgba(0, 0, 0, 0.03);
+            border-top: 1px solid var(--border-subtle);
+            display: flex;
+            justify-content: center;
+        }
+        
+        .play-btn {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: var(--white);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .play-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        }
+        
+        .play-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: #ffffff;
+            margin-left: 2px;
+        }
+        
+        .play-btn.playing svg {
+            margin-left: 0;
+        }
+        
+        /* Right Panel - Insights & Logs */
+        .insights-panel {
+            background: #fafafa;
+            border-left: 1px solid var(--border-subtle);
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+        
+        .insights-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        
+        .insight-tab {
+            flex: 1;
+            padding: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--gray-500);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        
+        .insight-tab:hover {
+            color: var(--gray-300);
+        }
+        
+        .insight-tab.active {
+            color: var(--white);
+            background: rgba(0, 0, 0, 0.04);
+        }
+        
+        .insight-content {
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+            display: none;
+        }
+
+        .insight-content.active {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+        
+        
+        /* Terminal Logs */
+        .terminal-box {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .terminal-logs-wrapper {
+            flex: 1;
+            min-height: 0;
+            position: relative;
+        }
+        
+        .terminal-filters {
+            padding: 8px 12px;
+            display: flex;
+            gap: 6px;
+            border-bottom: 1px solid var(--border-subtle);
+            flex-wrap: wrap;
+        }
+        
+        .filter-btn {
+            padding: 4px 10px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            border-radius: 4px;
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            color: var(--gray-500);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        
+        .filter-btn:hover {
+            border-color: var(--gray-500);
+            color: var(--gray-300);
+        }
+        
+        .filter-btn.active {
+            background: var(--white);
+            border-color: var(--white);
+            color: var(--gray-950);
+        }
+        
+        .filter-btn[data-source="livekit"].active { background: #3b82f6; border-color: #3b82f6; }
+        .filter-btn[data-source="whisper"].active { background: #22c55e; border-color: #22c55e; }
+        .filter-btn[data-source="google"].active { background: #f59e0b; border-color: #f59e0b; }
+        .filter-btn[data-source="groq"].active { background: #8b5cf6; border-color: #8b5cf6; }
+        
+        .terminal-logs {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            overflow-y: auto;
+            padding: 8px;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 11px;
+        }
+        
+        .log-entry {
+            display: flex;
+            gap: 8px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-bottom: 2px;
+        }
+        
+        .log-entry:hover {
+            background: rgba(0, 0, 0, 0.02);
+        }
+        
+        .log-time {
+            color: var(--gray-600);
+            flex-shrink: 0;
+        }
+        
+        .log-source {
+            font-weight: 600;
+            flex-shrink: 0;
+            min-width: 60px;
+        }
+        
+        .log-source.livekit { color: #3b82f6; }
+        .log-source.whisper { color: #22c55e; }
+        .log-source.google { color: #f59e0b; }
+        .log-source.groq { color: #8b5cf6; }
+        .log-source.system { color: var(--gray-500); }
+        
+        .log-level {
+            flex-shrink: 0;
+            min-width: 50px;
+        }
+        
+        .log-level.info { color: #3b82f6; }
+        .log-level.success { color: #22c55e; }
+        .log-level.warning { color: #f59e0b; }
+        .log-level.error { color: #ef4444; }
+        
+        .log-message {
+            color: var(--gray-300);
+            word-break: break-word;
+        }
+        
+        .empty-message {
+            padding: 20px;
+            text-align: center;
+            color: var(--gray-600);
+            font-size: 12px;
+        }
+        
+        @media (max-width: 1200px) {
+            .monitor-content {
+                grid-template-columns: 240px 1fr 280px;
+            }
+        }
+        
+        @media (max-width: 900px) {
+            .monitor-content {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr auto;
+            }
+            .tracks-panel, .insights-panel {
+                max-height: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="monitor-layout">
+        <!-- Header -->
+        <header class="monitor-header">
+            <div class="header-left">
+                <a href="#" onclick="goBack()" class="back-link">← Back</a>
+                <span class="event-title" id="eventTitle">Loading...</span>
+                <span class="event-code" id="eventCode"></span>
+            </div>
+            <div class="header-right">
+                <div class="connection-status">
+                    <div class="connection-dot" id="connectionDot"></div>
+                    <span id="connectionText">Connecting...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Content -->
+        <div class="monitor-content">
+            <!-- Left: Tracks -->
+            <div class="tracks-panel">
+                <div class="panel-header">
+                    <div class="panel-title">Audio Channels</div>
+                </div>
+                <div class="tracks-list" id="tracksList">
+                    <div class="empty-message">Waiting for channels...</div>
+                </div>
+                <div class="audio-controls">
+                    <div class="volume-row">
+                        <svg class="volume-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                        <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="80">
+                        <span class="volume-value" id="volumeValue">80%</span>
+                    </div>
+                    <div class="output-device-row">
+                        <label for="audioOutput" style="color: var(--gray-400); font-size: 11px;">Output Device:</label>
+                        <select id="audioOutput" class="audio-output-select">
+                            <option value="default">Default</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center: Subtitles -->
+            <div class="subtitles-panel">
+                <div class="subtitles-main">
+                    <div class="subtitle-box original">
+                        <div class="subtitle-label">
+                            <span class="flag" id="originalFlag">🎙️</span>
+                            Original
+                        </div>
+                        <div class="subtitle-text" id="subtitleOriginal">
+                            Waiting for speaker...
+                        </div>
+                    </div>
+                    
+                    <div class="subtitle-box translated">
+                        <div class="subtitle-label">
+                            <span class="flag" id="translatedFlag">🌐</span>
+                            <span id="translatedLabel">Translation</span>
+                        </div>
+                        <div class="subtitle-text" id="subtitleTranslated">
+                            Select a track to start listening
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="play-controls">
+                    <button class="play-btn" id="playBtn" onclick="togglePlay()">
+                        <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right: Logs -->
+            <div class="insights-panel">
+                <div class="insights-tabs">
+                    <button class="insight-tab active" data-tab="logs">Logs</button>
+                </div>
+
+                <div class="insight-content active" id="tab-logs">
+                    <div class="terminal-box">
+                        <div class="terminal-filters">
+                            <button class="filter-btn active" data-source="all" onclick="filterLogs('all')">All</button>
+                            <button class="filter-btn" data-source="livekit" onclick="filterLogs('livekit')">LiveKit</button>
+                            <button class="filter-btn" data-source="whisper" onclick="filterLogs('whisper')">Whisper</button>
+                            <button class="filter-btn" data-source="google" onclick="filterLogs('google')">Google</button>
+                            <button class="filter-btn" data-source="translator" onclick="filterLogs('translator')">Translator</button>
+                        </div>
+                        <div class="terminal-logs-wrapper">
+                            <div class="terminal-logs" id="terminalLogs">
+                                <div class="log-entry">
+                                    <span class="log-time">--:--:--</span>
+                                    <span class="log-source system">system</span>
+                                    <span class="log-level info">INFO</span>
+                                    <span class="log-message">Monitor initialized</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <audio id="audioPlayer"></audio>
+
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.0.4/dist/livekit-client.umd.min.js"></script>
+    <script>
+        // Server-injected configuration (from .env)
+        window.__SUPABASE_URL__ = '{{ SUPABASE_URL }}';
+        window.__SUPABASE_ANON_KEY__ = '{{ SUPABASE_ANON_KEY }}';
+        window.__APP_URL__ = '{{ APP_URL }}';
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="/static/js/config.js"></script>
+    <script src="/static/js/auth.js"></script>
+    <script src="/static/js/db.js"></script>
+    <script>
+        const eventCode = window.location.pathname.split('/')[2];
+        const urlParams = new URLSearchParams(window.location.search);
+        const initialChannel = urlParams.get('channel');
+        const initialLang = urlParams.get('lang');
+        
+        let currentEvent = null;
+        let currentUser = null;
+        let room = null;
+        let isPlaying = false;
+        let selectedTrackSid = null;
+        let selectedChannelLang = null;  // Canal de idioma seleccionado
+        let currentAudioOutputId = 'default';  // Dispositivo de salida
+        let subscribedTracks = new Map();
+        let audioElements = new Map();
+        let currentFilter = 'all';
+        let logs = [];
+        let wsLogs = null;
+
+        async function init() {
+            if (window.SUPABASE_CONFIG_ERROR) return;
+            
+            const auth = await Auth.requireAuth();
+            if (!auth) return;
+            
+            currentUser = await Auth.getUser();
+            
+            // Load event
+            currentEvent = await DB.getEventByCode(eventCode);
+            if (!currentEvent) {
+                addLog('system', 'error', 'Event not found');
+                return;
+            }
+            
+            document.getElementById('eventTitle').textContent = currentEvent.title;
+            document.getElementById('eventCode').textContent = currentEvent.event_code;
+            
+            // Load channels for initial display
+            const channels = await DB.getChannels(currentEvent.id);
+            renderInitialTracks(channels);
+            
+            // Set initial language if provided
+            if (initialLang) {
+                document.getElementById('translatedFlag').innerHTML = window.getFlag(initialLang);
+                document.getElementById('translatedLabel').textContent = window.getLangName(initialLang);
+            }
+            
+            // Connect to WebSocket for logs
+            connectWebSocketLogs();
+            
+            // Connect to LiveKit
+            await connectToLiveKit();
+        }
+
+        function renderInitialTracks(channels) {
+            const list = document.getElementById('tracksList');
+            
+            if (channels.length === 0) {
+                list.innerHTML = '<div class="empty-message">No channels configured</div>';
+                return;
+            }
+            
+            list.innerHTML = channels.map((c, i) => {
+                const flag = window.getFlag(c.language);
+                const name = c.name || window.getLangName(c.language);
+                const isActive = c.id === initialChannel;
+                
+                return `
+                    <div class="track-item ${isActive ? 'active' : ''}" data-channel="${c.id}" data-lang="${c.language}" onclick="selectChannel('${c.id}', '${c.language}')">
+                        <div class="track-indicator"></div>
+                        <span class="track-flag">${flag}</span>
+                        <div class="track-info">
+                            <div class="track-name">${escapeHtml(name)}</div>
+                            <div class="track-type">${c.is_original ? 'Original Audio' : 'Translation'}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function selectChannel(channelId, language) {
+            // Update UI
+            document.querySelectorAll('.track-item').forEach(el => {
+                el.classList.remove('active');
+                if (el.dataset.channel === channelId) {
+                    el.classList.add('active');
+                }
+            });
+            
+            document.getElementById('translatedFlag').innerHTML = window.getFlag(language);
+            document.getElementById('translatedLabel').textContent = window.getLangName(language);
+            
+            addLog('system', 'info', `Selected channel: ${window.getLangName(language)}`);
+        }
+
+        async function connectToLiveKit() {
+            addLog('livekit', 'info', 'Connecting to LiveKit...');
+            
+            try {
+                // Get listener token
+                const response = await fetch(`/api/session/${currentEvent.id}/join`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        identity: `monitor-${currentUser.id.slice(0, 8)}`,
+                        role: 'monitor'
+                    })
+                });
+                
+                if (!response.ok) {
+                    const err = await response.json();
+                    addLog('livekit', 'warning', `Session not active: ${err.detail || 'Unknown error'}`);
+                    updateConnection(false, 'Session not active');
+                    
+                    // Retry in 5 seconds
+                    setTimeout(() => connectToLiveKit(), 5000);
+                    return;
+                }
+                
+                const data = await response.json();
+                addLog('livekit', 'success', `Got token for room: ${data.room_name}`);
+                
+                // Create room
+                room = new LivekitClient.Room({
+                    adaptiveStream: true,
+                    dynacast: true,
+                });
+                
+                // Room events
+                room.on(LivekitClient.RoomEvent.Connected, () => {
+                    addLog('livekit', 'success', 'Connected to room');
+                    updateConnection(true, 'Connected');
+                });
+                
+                room.on(LivekitClient.RoomEvent.Disconnected, () => {
+                    addLog('livekit', 'warning', 'Disconnected from room');
+                    updateConnection(false, 'Disconnected');
+                });
+                
+                room.on(LivekitClient.RoomEvent.ParticipantConnected, (participant) => {
+                    addLog('livekit', 'info', `Participant joined: ${participant.identity}`);
+                });
+                
+                room.on(LivekitClient.RoomEvent.ParticipantDisconnected, (participant) => {
+                    addLog('livekit', 'info', `Participant left: ${participant.identity}`);
+                });
+                
+                room.on(LivekitClient.RoomEvent.TrackSubscribed, handleTrackSubscribed);
+                room.on(LivekitClient.RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed);
+                room.on(LivekitClient.RoomEvent.DataReceived, handleDataReceived);
+                
+                // Connect
+                await room.connect(data.livekit_url, data.token);
+                
+            } catch (e) {
+                addLog('livekit', 'error', `Connection error: ${e.message}`);
+                updateConnection(false, 'Error');
+            }
+        }
+
+        function handleTrackSubscribed(track, publication, participant) {
+            console.log('Track subscribed:', {
+                kind: track.kind,
+                name: publication.trackName,
+                participant: participant.identity,
+                sid: publication.trackSid
+            });
+            
+            addLog('livekit', 'info', `Track: ${publication.trackName || track.kind} from ${participant.identity}`);
+            
+            if (track.kind === LivekitClient.Track.Kind.Audio) {
+                // Store track info but DON'T attach yet
+                subscribedTracks.set(publication.trackSid, {
+                    track,
+                    publication,
+                    participant,
+                    attached: false
+                });
+                
+                console.log('Track stored (NOT attached):', publication.trackSid.slice(0, 8), publication.trackName);
+                addLog('livekit', 'success', `Audio ready: ${publication.trackName || participant.identity}`);
+                
+                // Update track list
+                updateTrackList();
+            }
+        }
+
+        function handleTrackUnsubscribed(track, publication) {
+            addLog('livekit', 'info', `Track unsubscribed: ${publication.trackName || track.kind}`);
+            
+            const trackInfo = subscribedTracks.get(publication.trackSid);
+            
+            // Detach if attached
+            if (trackInfo && trackInfo.attached) {
+                const audioEl = audioElements.get(publication.trackSid);
+                if (audioEl) {
+                    trackInfo.track.detach(audioEl);
+                    audioEl.remove();
+                    audioElements.delete(publication.trackSid);
+                }
+            }
+            
+            subscribedTracks.delete(publication.trackSid);
+            updateTrackList();
+        }
+
+        function handleDataReceived(payload, participant) {
+            try {
+                const data = JSON.parse(new TextDecoder().decode(payload));
+
+                switch (data.type) {
+                    case 'transcription':
+                    case 'subtitle':
+                        // Original subtitles always pass through
+                        if (data.is_original || data.channel === 'original') {
+                            document.getElementById('subtitleOriginal').textContent = data.text;
+                            addLog('whisper', 'info', `[Original] ${data.text.slice(0, 80)}`);
+                        } else if (data.is_translation) {
+                            // Translation subtitles: filter by selected channel
+                            if (selectedChannelLang && data.channel && data.channel !== selectedChannelLang) {
+                                return;
+                            }
+                            document.getElementById('subtitleTranslated').textContent = data.text;
+                            addLog('translator', 'info', `[${data.channel || data.language}] ${data.text.slice(0, 80)}`);
+                        }
+                        break;
+
+                    case 'tts_start':
+                        addLog('google', 'info', `TTS generating for ${data.language}...`);
+                        break;
+
+                    case 'tts_complete':
+                        addLog('google', 'success', `TTS complete for ${data.language}`);
+                        break;
+
+                    default:
+                        addLog('system', 'info', `Data: ${data.type}`);
+                }
+            } catch (e) {
+                // Ignore non-JSON data
+            }
+        }
+
+        function updateTrackList() {
+            const list = document.getElementById('tracksList');
+            
+            // Clear existing items (except channel headers)
+            list.querySelectorAll('.track-item:not(.channel-header)').forEach(el => el.remove());
+            
+            // Group tracks by language/channel
+            const tracksByLang = new Map();
+            
+            subscribedTracks.forEach((info, sid) => {
+                const name = info.publication.trackName || info.participant.identity;
+                const identity = info.participant.identity;
+                
+                // Determine language from track name or participant identity
+                let lang = 'original';
+                
+                // Check for TTS tracks (tts-es, tts-ca, etc)
+                const ttsMatch = name.match(/^tts-(\w+)$/i);
+                if (ttsMatch) {
+                    lang = ttsMatch[1];
+                }
+                // Check for agent identity (agent-es-xxx)
+                else if (identity.includes('agent-')) {
+                    const agentMatch = identity.match(/agent-(\w+)/i);
+                    if (agentMatch) lang = agentMatch[1];
+                }
+                // Broadcaster = original
+                else if (identity.toLowerCase().includes('broadcaster')) {
+                    lang = 'original';
+                }
+                
+                if (!tracksByLang.has(lang)) {
+                    tracksByLang.set(lang, []);
+                }
+                tracksByLang.get(lang).push({ sid, info, name });
+            });
+            
+            // Create channel items - one per language
+            // Priority order: original first, then alphabetically
+            const langs = Array.from(tracksByLang.keys()).sort((a, b) => {
+                if (a === 'original') return -1;
+                if (b === 'original') return 1;
+                return a.localeCompare(b);
+            });
+            
+            langs.forEach(lang => {
+                const tracks = tracksByLang.get(lang);
+                const existingChannel = list.querySelector(`[data-lang="${lang}"]`);
+                
+                if (!existingChannel && tracks.length > 0) {
+                    const flag = window.getFlag(lang);
+                    const langName = window.getLangName(lang);
+                    const isOriginal = lang === 'original';
+                    
+                    // Find the best track SID for this channel
+                    // Prefer TTS track for translations, broadcaster for original
+                    let bestTrack = tracks[0];
+                    if (!isOriginal) {
+                        const ttsTrack = tracks.find(t => t.name.startsWith('tts-'));
+                        if (ttsTrack) bestTrack = ttsTrack;
+                    }
+                    
+                    const div = document.createElement('div');
+                    div.className = 'track-item channel-item';
+                    div.dataset.sid = bestTrack.sid;
+                    div.dataset.lang = lang;
+                    div.onclick = () => selectChannel(lang);
+                    div.innerHTML = `
+                        <div class="track-indicator"></div>
+                        <span class="track-flag">${flag}</span>
+                        <div class="track-info">
+                            <div class="track-name">${langName}</div>
+                            <div class="track-type">${isOriginal ? 'Original Audio' : 'Translation'}</div>
+                        </div>
+                    `;
+                    list.appendChild(div);
+                }
+            });
+        }
+        
+        function selectChannel(lang) {
+            console.log('=== SELECTING CHANNEL:', lang, '===');
+            
+            // Establecer el idioma del canal seleccionado
+            selectedChannelLang = lang;
+            
+            // Limpiar subtítulos anteriores
+            document.getElementById('subtitleOriginal').textContent = '';
+            document.getElementById('subtitleTranslated').textContent = '';
+            
+            // PRIMERO: Detach TODOS los tracks para asegurar silencio total
+            detachAllTracks();
+            
+            // Find the track SID for this language
+            let targetSid = null;
+            
+            subscribedTracks.forEach((info, sid) => {
+                const name = info.publication.trackName || '';
+                const identity = info.participant.identity;
+                
+                if (lang === 'original') {
+                    if (identity.toLowerCase().includes('broadcaster')) {
+                        targetSid = sid;
+                    }
+                } else {
+                    if (name === `tts-${lang}`) {
+                        targetSid = sid;
+                    }
+                }
+            });
+            
+            if (targetSid) {
+                selectedTrackSid = targetSid;
+                
+                // Update UI
+                document.querySelectorAll('.track-item').forEach(el => {
+                    el.classList.remove('active');
+                    if (el.dataset.lang === lang) {
+                        el.classList.add('active');
+                    }
+                });
+                
+                // Update language display
+                document.getElementById('translatedFlag').innerHTML = window.getFlag(lang);
+                document.getElementById('translatedLabel').textContent = window.getLangName(lang);
+                
+                addLog('system', 'info', `Selected: ${window.getLangName(lang)}`);
+                
+                // Si ya estamos reproduciendo, activar este track
+                if (isPlaying) {
+                    playSelectedTrack();
+                }
+            } else {
+                addLog('system', 'warning', `No audio track found for ${lang}`);
+            }
+        }
+        
+        function detachAllTracks() {
+            // Detach ALL tracks to ensure complete silence
+            subscribedTracks.forEach((info, sid) => {
+                if (info.attached) {
+                    const audioEl = audioElements.get(sid);
+                    if (audioEl) {
+                        audioEl.pause();
+                        audioEl.srcObject = null;
+                        info.track.detach(audioEl);
+                        audioEl.remove();
+                        audioElements.delete(sid);
+                    }
+                    info.attached = false;
+                    console.log('Detached track:', sid.slice(0, 8));
+                }
+            });
+        }
+
+        function playSelectedTrack() {
+            if (!selectedTrackSid) {
+                addLog('system', 'warning', 'No track selected');
+                return;
+            }
+            
+            const trackInfo = subscribedTracks.get(selectedTrackSid);
+            if (!trackInfo) {
+                addLog('system', 'error', 'Track not found');
+                return;
+            }
+            
+            const volume = document.getElementById('volumeSlider').value / 100;
+            
+            // PRIMERO: Detach TODOS los otros tracks
+            detachAllTracks();
+            
+            // LUEGO: Attach SOLO el track seleccionado
+            console.log('Attaching ONLY track:', selectedTrackSid.slice(0, 8), trackInfo.publication.trackName);
+            
+            const audioEl = trackInfo.track.attach();
+            audioEl.volume = volume;
+            audioEl.muted = false;
+            
+            // Set output device if available
+            if (audioEl.setSinkId && currentAudioOutputId !== 'default') {
+                audioEl.setSinkId(currentAudioOutputId).catch(e => {
+                    console.log('Could not set audio output:', e);
+                });
+            }
+            
+            document.body.appendChild(audioEl);
+            audioElements.set(selectedTrackSid, audioEl);
+            trackInfo.attached = true;
+            
+            audioEl.play().then(() => {
+                addLog('system', 'success', `Playing: ${window.getLangName(selectedChannelLang)}`);
+            }).catch(e => {
+                console.error('Play failed:', e);
+                addLog('system', 'warning', 'Click Play again');
+            });
+        }
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            const btn = document.getElementById('playBtn');
+            
+            console.log('Toggle play:', isPlaying);
+            
+            if (isPlaying) {
+                btn.classList.add('playing');
+                btn.innerHTML = '<svg viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" fill="currentColor"></rect><rect x="14" y="4" width="4" height="16" fill="currentColor"></rect></svg>';
+                
+                if (selectedTrackSid) {
+                    playSelectedTrack();
+                } else {
+                    addLog('system', 'warning', 'Select a channel first');
+                    isPlaying = false;
+                    btn.classList.remove('playing');
+                    btn.innerHTML = '<svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+                }
+            } else {
+                btn.classList.remove('playing');
+                btn.innerHTML = '<svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+                
+                // Detach ALL tracks - silence total
+                detachAllTracks();
+                
+                addLog('system', 'info', 'Playback stopped');
+            }
+        }
+
+        function updateConnection(connected, text) {
+            const dot = document.getElementById('connectionDot');
+            const textEl = document.getElementById('connectionText');
+            
+            if (connected) {
+                dot.classList.add('connected');
+            } else {
+                dot.classList.remove('connected');
+            }
+            textEl.textContent = text;
+        }
+
+        // WebSocket for server logs
+        function connectWebSocketLogs() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/logs/${currentEvent.id}`;
+            
+            wsLogs = new WebSocket(wsUrl);
+            
+            wsLogs.onopen = () => {
+                addLog('system', 'success', 'Connected to log stream');
+            };
+            
+            wsLogs.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    addLog(data.source || 'system', data.level || 'info', data.message);
+                } catch (e) {
+                    addLog('system', 'info', event.data);
+                }
+            };
+            
+            wsLogs.onclose = () => {
+                addLog('system', 'warning', 'Log stream disconnected');
+                // Reconnect after 3 seconds
+                setTimeout(connectWebSocketLogs, 3000);
+            };
+        }
+
+        // Logs
+        function addLog(source, level, message) {
+            const time = new Date().toLocaleTimeString();
+            logs.push({ time, source, level, message });
+            
+            // Keep only last 500 logs
+            if (logs.length > 500) logs.shift();
+            
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const container = document.getElementById('terminalLogs');
+            const filteredLogs = currentFilter === 'all' 
+                ? logs 
+                : logs.filter(l => l.source === currentFilter);
+            
+            container.innerHTML = filteredLogs.slice(-100).map(l => `
+                <div class="log-entry" data-source="${l.source}">
+                    <span class="log-time">${l.time}</span>
+                    <span class="log-source ${l.source}">${l.source}</span>
+                    <span class="log-level ${l.level}">${l.level.toUpperCase()}</span>
+                    <span class="log-message">${escapeHtml(l.message)}</span>
+                </div>
+            `).join('');
+            
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function filterLogs(source) {
+            currentFilter = source;
+            
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.source === source);
+            });
+            
+            renderLogs();
+        }
+
+        // Volume
+        document.getElementById('volumeSlider').addEventListener('input', (e) => {
+            const volume = e.target.value / 100;
+            document.getElementById('volumeValue').textContent = e.target.value + '%';
+            audioElements.forEach(el => el.volume = volume);
+        });
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function goBack() {
+            if (room) room.disconnect();
+            if (wsLogs) wsLogs.close();
+            window.location.href = `/event/${eventCode}`;
+        }
+
+        // Cleanup
+        window.addEventListener('beforeunload', () => {
+            if (room) room.disconnect();
+            if (wsLogs) wsLogs.close();
+        });
+
+        // ========================================
+        // AUDIO OUTPUT DEVICE SELECTOR
+        // ========================================
+        async function loadAudioOutputDevices() {
+            const select = document.getElementById('audioOutput');
+            if (!select) return;
+            
+            try {
+                // Necesitamos permiso de audio primero
+                await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
+                
+                select.innerHTML = '<option value="default">Default</option>';
+                
+                audioOutputs.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.textContent = device.label || `Speaker ${audioOutputs.indexOf(device) + 1}`;
+                    select.appendChild(option);
+                });
+                
+                addLog('system', 'info', `Found ${audioOutputs.length} audio output devices`);
+            } catch (e) {
+                console.log('Could not enumerate audio devices:', e);
+                addLog('system', 'warning', 'Audio device selection not available');
+            }
+        }
+        
+        function changeAudioOutput(deviceId) {
+            currentAudioOutputId = deviceId;
+            
+            // Aplicar a todos los elementos de audio
+            audioElements.forEach((el, sid) => {
+                if (el.setSinkId) {
+                    el.setSinkId(deviceId).then(() => {
+                        console.log(`Set audio output for ${sid.slice(0,8)} to ${deviceId}`);
+                    }).catch(e => {
+                        console.error('Could not set audio output:', e);
+                    });
+                }
+            });
+            
+            addLog('system', 'info', `Audio output changed`);
+        }
+        
+        // Event listener para el selector de dispositivo
+        document.getElementById('audioOutput')?.addEventListener('change', (e) => {
+            changeAudioOutput(e.target.value);
+        });
+        
+        // Cargar dispositivos después de init
+        setTimeout(loadAudioOutputDevices, 1000);
+
+        init();
+    </script>
+</body>
+</html>

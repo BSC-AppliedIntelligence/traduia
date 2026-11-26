@@ -1,0 +1,126 @@
+# =============================================================================
+# AINA Translator - multi-arch GPU image with source-built CTranslate2 (slim)
+# =============================================================================
+# Two stages: CTranslate2 is compiled with CUDA support in the (large) devel image, and only the compiled library,
+# the Python environment and the application are copied into the CUDA *runtime* image. The result is a fraction of
+# the size of a single-stage build, which would also ship the compilers, Nsight tools and the CTranslate2 build tree.
+
+# ---- build stage -------------------------------------------------------------
+FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04 AS build
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG CTRANSLATE2_VERSION=v4.7.1
+ARG CTRANSLATE2_INSTALL_PREFIX=/opt/ctranslate2
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        cmake \
+        git \
+        libopenblas-dev \
+        ninja-build \
+        pkg-config \
+        python3 \
+        python3-dev \
+        python3-pip \
+        python3-setuptools \
+        python3-venv \
+        python3-wheel \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build and install CTranslate2 from source with CUDA enabled. This avoids the PyPI arm64 wheel path, which can
+# resolve to a CPU-only CTranslate2 build.
+WORKDIR /tmp
+RUN git clone --recursive --depth 1 --branch "${CTRANSLATE2_VERSION}" https://github.com/OpenNMT/CTranslate2.git ctranslate2-src
+
+WORKDIR /tmp/ctranslate2-src
+RUN cmake -S . -B build -GNinja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="${CTRANSLATE2_INSTALL_PREFIX}" \
+        -DBUILD_CLI=OFF \
+        -DWITH_CUDA=ON \
+        -DWITH_CUDNN=ON \
+        -DWITH_MKL=OFF \
+        -DWITH_DNNL=OFF \
+        -DWITH_OPENBLAS=ON \
+        -DOPENMP_RUNTIME=COMP \
+        -DCUDA_DYNAMIC_LOADING=ON \
+    && cmake --build build --parallel \
+    && cmake --install build
+
+# Python environment: the source-built ctranslate2 wheel plus the application dependencies (without the PyPI
+# ctranslate2 wheel).
+RUN python3 -m venv /opt/venv && /opt/venv/bin/pip install --no-cache-dir -U "pip>=24"
+WORKDIR /tmp/ctranslate2-src/python
+ENV CTRANSLATE2_ROOT=${CTRANSLATE2_INSTALL_PREFIX}
+RUN /opt/venv/bin/pip install --no-cache-dir -r install_requirements.txt \
+    && /opt/venv/bin/python setup.py bdist_wheel \
+    && /opt/venv/bin/pip install --no-cache-dir dist/*.whl
+
+COPY requirements.txt /tmp/requirements.txt
+RUN grep -vE '^ctranslate2([<=>].*)?$' /tmp/requirements.txt > /tmp/requirements.no-ct2.txt \
+    && /opt/venv/bin/pip install --no-cache-dir -r /tmp/requirements.no-ct2.txt
+
+# ---- runtime stage -----------------------------------------------------------
+FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG TARGETARCH
+ARG CTRANSLATE2_INSTALL_PREFIX=/opt/ctranslate2
+
+LABEL org.opencontainers.image.title="traduia-modelskit" \
+      org.opencontainers.image.description="AINA translation microservice (Catalan to es/en/fr/pt/it/de) on CTranslate2 with CUDA" \
+      org.opencontainers.image.source="https://github.com/BSC-AppliedIntelligence/traduia" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
+# Runtime libraries only: Python, OpenBLAS and OpenMP (CTranslate2 loads cuBLAS/cuDNN dynamically from this image).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        libgomp1 \
+        libopenblas0 \
+        python3 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build ${CTRANSLATE2_INSTALL_PREFIX}/lib ${CTRANSLATE2_INSTALL_PREFIX}/lib
+COPY --from=build /opt/venv /opt/venv
+
+# Register architecture-specific CUDA target libraries and the source-built CTranslate2 shared library with the
+# dynamic linker.
+RUN arch="${TARGETARCH:-$(dpkg --print-architecture)}" \
+    && case "${arch}" in \
+        arm64|aarch64) cuda_target="sbsa-linux" ;; \
+        amd64|x86_64) cuda_target="x86_64-linux" ;; \
+        *) echo "Unsupported architecture=${arch}" >&2; exit 1 ;; \
+    esac \
+    && printf '%s\n' \
+        "${CTRANSLATE2_INSTALL_PREFIX}/lib" \
+        "/usr/local/cuda/targets/${cuda_target}/lib" \
+        "/usr/local/nvidia/lib" \
+        "/usr/local/nvidia/lib64" \
+        > /etc/ld.so.conf.d/modelskit-gpu.conf \
+    && ldconfig
+
+ENV PATH=/opt/venv/bin:${PATH}
+RUN ln -sf /usr/bin/python3 /usr/local/bin/python
+
+WORKDIR /app
+
+# Verify the source-built Python extension imports. The actual CUDA device count must be checked at runtime because
+# Docker builds normally do not expose GPUs.
+RUN python -c "import ctranslate2, pyonmttok, fastapi, huggingface_hub; print('ctranslate2', ctranslate2.__version__)"
+
+COPY app.py .
+
+# Persist Hugging Face downloads in the mounted modelskit workspace volume.
+ENV HF_HOME=/workspace/.hf_cache
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]

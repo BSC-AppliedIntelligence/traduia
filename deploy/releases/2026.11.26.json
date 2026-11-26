@@ -1,0 +1,30 @@
+{
+  "release": "2026.11.26",
+  "note": "Images are public on ghcr.io; digests are the linux/amd64 manifests. livekit is the upstream image.",
+  "services": {
+    "backstage": {
+      "image": "ghcr.io/bsc-appliedintelligence/traduia/backstage:2026.11.26",
+      "digest": "sha256:fc2e990b5992b72e886c3d5ed7fcd16ef134171f4b8559888c517c766812cd07"
+    },
+    "stage": {
+      "image": "ghcr.io/bsc-appliedintelligence/traduia/stage:2026.11.26",
+      "digest": "sha256:e0977766a862a646c738e7110e799768118b2ddf4c5288468960272a269c6f5a"
+    },
+    "whisperlive": {
+      "image": "ghcr.io/bsc-appliedintelligence/traduia/whisperlive:2026.11.26",
+      "digest": "sha256:5ff6b2c492baf84a968646685954eca4bc728f685563223b3b08e071f4601564"
+    },
+    "modelskit": {
+      "image": "ghcr.io/bsc-appliedintelligence/traduia/modelskit:2026.11.26",
+      "digest": "sha256:d9d9739f57f2621ba931f0d48d8ac14728b0bdd07f88fe8f20d2dba94b9dd5dc"
+    },
+    "livekit": {
+      "image": "docker.io/livekit/livekit-server:v1.13.1",
+      "digest": "sha256:4d1cc81b039b236b2b2580714cb5d89321a7313e604274f7131cf76f7a43ef80"
+    },
+    "db-init": {
+      "image": "ghcr.io/bsc-appliedintelligence/traduia/db-init:2026.11.26",
+      "digest": "sha256:6c6928af8ea1e9f1aa4b0ad95db6aa929d0aba1831bd000fc48b908f31c854bd"
+    }
+  }
+}

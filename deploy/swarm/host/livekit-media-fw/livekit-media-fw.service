@@ -1,0 +1,13 @@
+[Unit]
+Description=Block Internet access to LiveKit media ports (hairpin from containers only)
+After=docker.service
+Requires=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/livekit-media-fw.sh
+
+[Install]
+WantedBy=multi-user.target

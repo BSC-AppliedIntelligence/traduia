@@ -1,0 +1,26 @@
+TraduIA
+Copyright 2026 Barcelona Supercomputing Center - Centro Nacional de Supercomputación (BSC-CNS)
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE), except where noted below.
+
+Contributors
+  Parts of this software were developed for BSC under contract by Link3rs (https://www.link3rs.com).
+
+Components and licences
+  backstage/, stage/, modelskit/, deploy/   Apache License 2.0 (this repository's LICENSE)
+  whisperlive/                              MIT License (whisperlive/LICENSE). A modified copy of WhisperLive by
+                                            Collabora Ltd. and its contributors (https://github.com/collabora/WhisperLive),
+                                            with changes by BSC. Its original copyright and licence notice are kept.
+
+Trademarks and logos
+  The names and logos of BSC and Link3rs that appear in the user interface and in static assets are not licensed
+  under the Apache License; the licence grants no right to use them (Apache License 2.0, section 6).
+
+Models and third-party software (downloaded or installed at run time; not part of this repository)
+  Speech recognition: Systran/faster-whisper-small and Systran/faster-whisper-large-v3 (MIT),
+                      BSC-LT/faster-whisper-large-v3-ca-punctuated-3370h (Apache-2.0).
+  Translation:        Projecte AINA models "projecte-aina/aina-translator-ca-*" (Apache-2.0).
+  Container images are built on third-party bases (Python, Alpine, NVIDIA CUDA) and include open-source packages under
+  their own licences; the NVIDIA CUDA images are subject to the NVIDIA Deep Learning Container License.
+  Supabase components (supabase/postgres, supabase/gotrue, postgrest/postgrest) and LiveKit are used as unmodified
+  upstream images under their own licences.
