@@ -202,7 +202,7 @@ services:
       source: ${TRADUIA_DATA_DIR:-/data/traduia}/cache/whisperlive
       target: /workspace
   modelskit:
-    image: ${BSC_MODELSKIT_IMAGE:-ghcr.io/bsc-appliedintelligence/traduia/modelskit:2026.11.26@sha256:d9d9739f57f2621ba931f0d48d8ac14728b0bdd07f88fe8f20d2dba94b9dd5dc}
+    image: ${BSC_MODELSKIT_IMAGE:-ghcr.io/bsc-appliedintelligence/traduia/modelskit:2026.11.26@sha256:52d9b2e5f4856f4867e21aaf00f09f0ac0cb62d13fef3261f015228e343aabfd}
     networks:
     - backend
     deploy:
